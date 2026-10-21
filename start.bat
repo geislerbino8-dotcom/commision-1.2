@@ -1,2 +1,2 @@
 @echo off
-python server.py
+python backend\server.py

@@ -109,11 +109,15 @@ def _require_admin():
         }), 403)
     return user, None
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH  = os.path.join(BASE_DIR, 'database', 'mr_boy.db')
+BACKEND_DIR  = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
+# Static assets (frontend/dist, public/, index.html) live at the repo root.
+BASE_DIR     = PROJECT_ROOT
+# The SQLite fallback DB lives beside the backend code.
+DB_PATH      = os.path.join(BACKEND_DIR, 'database', 'mr_boy.db')
 
 # Auto-load .env configuration if present
-env_file = os.path.join(BASE_DIR, '.env')
+env_file = os.path.join(BACKEND_DIR, '.env')
 if os.path.exists(env_file):
     try:
         with open(env_file, 'r', encoding='utf-8') as f:
@@ -128,21 +132,91 @@ if os.path.exists(env_file):
     except Exception as e:
         print(f"[WARN] Error reading .env: {e}")
 
-TURSO_DATABASE_URL = os.environ.get('TURSO_DATABASE_URL', '').strip()
-TURSO_AUTH_TOKEN   = os.environ.get('TURSO_AUTH_TOKEN', '').strip()
+# ── MySQL (phpMyAdmin / XAMPP) configuration ──────────────────
+# Primary database is local MySQL (MariaDB via XAMPP). Defaults match XAMPP's
+# stock setup: root with an empty password on 127.0.0.1:3306.
+MYSQL_HOST     = os.environ.get('MYSQL_HOST', '127.0.0.1').strip()
+MYSQL_PORT     = int(os.environ.get('MYSQL_PORT', '3306') or '3306')
+MYSQL_USER     = os.environ.get('MYSQL_USER', 'root').strip()
+MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD', '')
+MYSQL_DATABASE = os.environ.get('MYSQL_DATABASE', 'mr_boy_db').strip()
 
 
-# ── Turso & SQLite Database Adapters ──────────────────────────
+# ── MySQL & SQLite Database Adapters ─────────────────────────
+# MySQLConnection is a thin sqlite3-compatible wrapper over PyMySQL. Keeping the
+# sqlite3 surface (execute/executescript/commit/close + '?' placeholders + rows
+# that support both row['col'] and row[0]) means none of the ~36 query call sites
+# across the app had to change.
 
-import requests
+import re
+import pymysql
 
-class TursoRow(dict):
-    """Row object that supports key access, integer index access, and dict conversion."""
+
+def _split_sql(script):
+    """Split a SQL script into individual statements on ';'."""
+    return [s.strip() for s in script.split(';') if s.strip()]
+
+
+def _excluded_to_values(set_clause):
+    """Rewrite `col = excluded.col` (SQLite) as `col = VALUES(col)` (MySQL)."""
+    parts = []
+    for assign in set_clause.split(','):
+        assign = assign.strip()
+        m = re.match(r'^([A-Za-z_][\w`]*)\s*=\s*excluded\.([A-Za-z_][\w`]*)$', assign, re.IGNORECASE)
+        if m:
+            parts.append(f"{m.group(1)} = VALUES({m.group(2)})")
+        else:
+            parts.append(assign)
+    return ', '.join(parts)
+
+
+def _strftime_repl(match):
+    """strftime('%m', col) -> DATE_FORMAT(col, '%m'); strftime('%m','now') -> DATE_FORMAT(CURDATE(), '%m')."""
+    fmt, col = match.group(1), match.group(2).strip()
+    bare = col.strip().strip('\'"')
+    target = 'CURDATE()' if bare.lower() == 'now' else col
+    return f"DATE_FORMAT({target}, '{fmt}')"
+
+
+def _to_mysql_sql(sql):
+    """Translate the few SQLite-isms this app uses into MySQL equivalents."""
+    # Upsert:  ON CONFLICT(col) DO UPDATE SET a = excluded.a, b = CURRENT_TIMESTAMP
+    #       -> ON DUPLICATE KEY UPDATE a = VALUES(a), b = CURRENT_TIMESTAMP
+    sql = re.sub(
+        r'ON CONFLICT\(\s*[A-Za-z_][\w`]*\s*\)\s*DO\s+UPDATE\s+SET\s+(.+?)\s*$',
+        lambda m: 'ON DUPLICATE KEY UPDATE ' + _excluded_to_values(m.group(1)),
+        sql, flags=re.IGNORECASE | re.DOTALL,
+    )
+    # DATE('now') -> CURDATE()
+    sql = re.sub(r"DATE\(\s*'now'\s*\)", 'CURDATE()', sql, flags=re.IGNORECASE)
+    # strftime('%m', x) / strftime('%Y', x) -> DATE_FORMAT(x, '%m' / '%Y')
+    sql = re.sub(r"strftime\(\s*'(%[mY])'\s*,\s*('[^']*'|[A-Za-z_]\w*)\s*\)",
+                 _strftime_repl, sql, flags=re.IGNORECASE)
+    return sql
+
+
+def _to_pyparam(sql):
+    """Convert SQLite '?' placeholders to PyMySQL's '%s', skipping '...' literals."""
+    out = []
+    in_str = False
+    for ch in sql:
+        if ch == "'":
+            in_str = not in_str
+            out.append(ch)
+        elif ch == '?' and not in_str:
+            out.append('%s')
+        else:
+            out.append(ch)
+    return ''.join(out)
+
+
+class MySQLRow(dict):
+    """Row supporting key access (row['col']) and integer index access (row[0])."""
     def __init__(self, cols, values):
         super().__init__()
-        self._cols = cols
-        self._values = values
-        for col, val in zip(cols, values):
+        self._cols = list(cols)
+        self._values = list(values)
+        for col, val in zip(self._cols, self._values):
             self[col] = val
 
     def __getitem__(self, key):
@@ -157,10 +231,10 @@ class TursoRow(dict):
         return self._values
 
 
-class TursoCursor:
-    def __init__(self, cols=None, rows=None, lastrowid=None, rowcount=0):
+class MySQLCursor:
+    def __init__(self, cols=None, rows=None, lastrowid=0, rowcount=0):
         self._cols = cols or []
-        self._rows = [TursoRow(self._cols, r) for r in (rows or [])]
+        self._rows = [MySQLRow(self._cols, r) for r in (rows or [])]
         self._index = 0
         self.lastrowid = lastrowid
         self.rowcount = rowcount
@@ -181,208 +255,201 @@ class TursoCursor:
         return iter(self.fetchall())
 
 
-class TursoConnection:
-    """Zero-dependency pure-HTTP Turso Cloud Database connection."""
-    def __init__(self, url, token):
-        self.url = url.replace('libsql://', 'https://').rstrip('/') + '/v2/pipeline'
-        self.token = token
-        self._closed = False
+class MySQLConnection:
+    """sqlite3-compatible wrapper over a PyMySQL connection."""
+    def __init__(self, host, port, user, password, database):
+        self._conn = pymysql.connect(
+            host=host, port=port, user=user, password=password,
+            database=database, charset='utf8mb4', autocommit=False,
+            connect_timeout=5, cursorclass=pymysql.cursors.Cursor,
+        )
 
-    def _convert_arg(self, arg):
-        if arg is None:
-            return {"type": "null"}
-        elif isinstance(arg, bool):
-            return {"type": "integer", "value": "1" if arg else "0"}
-        elif isinstance(arg, int):
-            return {"type": "integer", "value": str(arg)}
-        elif isinstance(arg, float):
-            return {"type": "float", "value": arg}
-        elif isinstance(arg, (bytes, bytearray)):
-            import base64
-            return {"type": "blob", "base64": base64.b64encode(arg).decode('utf-8')}
-        else:
-            return {"type": "text", "value": str(arg)}
-
-    def _convert_val(self, val_obj):
-        if not isinstance(val_obj, dict):
-            return val_obj
-        t = val_obj.get("type")
-        v = val_obj.get("value")
-        if t == "null":
-            return None
-        elif t == "integer":
-            return int(v) if v is not None else None
-        elif t == "float":
-            return float(v) if v is not None else None
-        elif t == "blob":
-            import base64
-            b64 = val_obj.get("base64", "")
-            return base64.b64decode(b64)
-        else:
-            return v
-
-    def execute(self, sql, params=()):
-        if self._closed:
-            raise RuntimeError("Cannot operate on closed Turso connection")
-        
-        args_payload = [self._convert_arg(p) for p in params]
-        payload = {
-            "requests": [
-                {
-                    "type": "execute",
-                    "stmt": {
-                        "sql": sql,
-                        "args": args_payload
-                    }
-                },
-                {"type": "close"}
-            ]
-        }
-        
-        headers = {
-            "Authorization": f"Bearer {self.token}",
-            "Content-Type": "application/json"
-        }
-        
-        resp = requests.post(self.url, headers=headers, json=payload, timeout=12)
-        if resp.status_code != 200:
-            raise RuntimeError(f"Turso HTTP {resp.status_code}: {resp.text}")
-        
-        data = resp.json()
-        results = data.get("results", [])
-        if not results:
-            return TursoCursor()
-            
-        first = results[0]
-        if first.get("type") == "error":
-            raise RuntimeError(f"Turso SQL Error: {first.get('error')}")
-            
-        response_data = first.get("response", {})
-        result_data = response_data.get("result", {})
-        
-        cols = [c.get("name") for c in result_data.get("cols", [])]
-        raw_rows = result_data.get("rows", [])
-        
-        parsed_rows = []
-        for row in raw_rows:
-            parsed_rows.append([self._convert_val(col_val) for col_val in row])
-            
-        last_insert_id = result_data.get("last_insert_rowid")
-        if last_insert_id is not None:
-            try:
-                last_insert_id = int(last_insert_id)
-            except (ValueError, TypeError):
-                pass
-                
-        affected = result_data.get("affected_row_count", 0)
-        return TursoCursor(cols=cols, rows=parsed_rows, lastrowid=last_insert_id, rowcount=affected)
+    def execute(self, sql, params=None):
+        mysql_sql = _to_mysql_sql(sql)
+        if params is not None:
+            mysql_sql = _to_pyparam(mysql_sql)
+        with self._conn.cursor() as cur:
+            affected = cur.execute(mysql_sql, params)
+            cols = [d[0] for d in (cur.description or [])]
+            rows = cur.fetchall() if cur.description else []
+            lastrowid = cur.lastrowid or 0
+        return MySQLCursor(cols=cols, rows=rows, lastrowid=lastrowid, rowcount=affected)
 
     def executescript(self, script):
-        statements = [s.strip() for s in script.split(';') if s.strip()]
-        last_cur = None
-        for stmt in statements:
-            last_cur = self.execute(stmt)
-        return last_cur
+        last = None
+        for stmt in _split_sql(script):
+            last = self.execute(stmt)
+        return last
 
     def commit(self):
-        pass
+        self._conn.commit()
 
     def close(self):
-        self._closed = True
+        try:
+            self._conn.close()
+        except Exception:
+            pass
 
 
-# Tracks whether the Turso cloud DB is usable. Once a connection/query fails we
-# remember it and skip Turso for the rest of the process, so every request doesn't
-# pay the failure cost (and 500). Set back to False only by restarting the server
-# (e.g. after putting a valid TURSO_AUTH_TOKEN in .env).
-_TURSO_HEALTHY = True
+# Tracks whether MySQL is usable. Once a connection fails we remember it and skip
+# MySQL for the rest of the process, so every request doesn't pay the failure cost
+# (and 500). Set back to True only by restarting the server (e.g. after starting
+# XAMPP's MySQL service).
+_MYSQL_HEALTHY = True
 
 
 def get_db():
-    """Get a database connection (Turso Cloud Database if env set, otherwise local SQLite).
-
-    Turso's auth token can expire. The failure only surfaces on the first real
-    query (the constructor makes no network call), so we probe once and fall back
-    to local SQLite if Turso is unavailable — instead of returning HTTP 500.
-    """
-    global _TURSO_HEALTHY
-
-    if TURSO_DATABASE_URL and TURSO_AUTH_TOKEN and _TURSO_HEALTHY:
+    """Return a MySQL connection when configured and reachable, else local SQLite."""
+    global _MYSQL_HEALTHY
+    if MYSQL_DATABASE and _MYSQL_HEALTHY:
         try:
-            conn = TursoConnection(TURSO_DATABASE_URL, TURSO_AUTH_TOKEN)
-            conn.execute('SELECT 1')  # Probe: catches expired/invalid auth up front.
-            return conn
+            return MySQLConnection(
+                host=MYSQL_HOST, port=MYSQL_PORT, user=MYSQL_USER,
+                password=MYSQL_PASSWORD, database=MYSQL_DATABASE,
+            )
         except Exception as e:
-            _TURSO_HEALTHY = False
-            print(f"[WARN] Turso unavailable ({e}). Falling back to local SQLite.")
+            print(f"[WARN] MySQL unavailable ({e}); falling back to SQLite at {DB_PATH}")
+            _MYSQL_HEALTHY = False
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 
+def _using_mysql():
+    """True when the primary connection is MySQL (not the SQLite fallback)."""
+    return bool(MYSQL_DATABASE) and _MYSQL_HEALTHY
+
+
+def _mysql_columns(conn, table):
+    """Return the column names of a MySQL table via information_schema."""
+    rows = conn.execute(
+        "SELECT COLUMN_NAME AS name FROM information_schema.columns "
+        "WHERE table_schema = DATABASE() AND table_name = ?", (table,)
+    ).fetchall()
+    return [r['name'] for r in rows]
+
+
 def init_db():
     """Create tables if they don't exist and seed default admin."""
-    if not (TURSO_DATABASE_URL and TURSO_AUTH_TOKEN):
-        os.makedirs(os.path.join(BASE_DIR, 'database'), exist_ok=True)
+    if _using_mysql():
+        mysql_ddl = '''
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(255) UNIQUE NOT NULL,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                fullname VARCHAR(255) NOT NULL,
+                role VARCHAR(50) DEFAULT 'customer',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-    conn = get_db()
-    conn.executescript('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            fullname TEXT NOT NULL,
-            role TEXT DEFAULT 'customer',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
+            CREATE TABLE IF NOT EXISTS orders (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NULL,
+                customer_name VARCHAR(255) NOT NULL,
+                customer_username VARCHAR(255) NULL,
+                customer_email VARCHAR(255) NULL,
+                order_details TEXT NOT NULL,
+                total_price DOUBLE NOT NULL,
+                status VARCHAR(50) DEFAULT 'pending',
+                order_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-        CREATE TABLE IF NOT EXISTS orders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            customer_name TEXT NOT NULL,
-            customer_username TEXT,
-            customer_email TEXT,
-            order_details TEXT NOT NULL,
-            total_price REAL NOT NULL,
-            status TEXT DEFAULT 'pending',
-            order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-        );
+            CREATE TABLE IF NOT EXISTS contact_messages (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                email VARCHAR(255) NOT NULL,
+                contact VARCHAR(255) NOT NULL,
+                message TEXT NOT NULL,
+                is_read INT DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-        CREATE TABLE IF NOT EXISTS contact_messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            email TEXT NOT NULL,
-            contact TEXT NOT NULL,
-            message TEXT NOT NULL,
-            is_read INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
+            CREATE TABLE IF NOT EXISTS product_availability (
+                product_id VARCHAR(255) PRIMARY KEY,
+                is_available INT DEFAULT 1,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        '''
+        conn = get_db()
+        conn.executescript(mysql_ddl)
 
-        CREATE TABLE IF NOT EXISTS product_availability (
-            product_id TEXT PRIMARY KEY,
-            is_available INTEGER DEFAULT 1,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-    ''')
+        # Migration for existing orders table
+        order_cols = _mysql_columns(conn, 'orders')
+        if 'user_id' not in order_cols:
+            conn.execute("ALTER TABLE orders ADD COLUMN user_id INT NULL")
+        if 'customer_username' not in order_cols:
+            conn.execute("ALTER TABLE orders ADD COLUMN customer_username VARCHAR(255) NULL")
+        if 'customer_email' not in order_cols:
+            conn.execute("ALTER TABLE orders ADD COLUMN customer_email VARCHAR(255) NULL")
+        if 'status' not in order_cols:
+            conn.execute("ALTER TABLE orders ADD COLUMN status VARCHAR(50) DEFAULT 'pending'")
 
-    # Migration for existing orders table
-    order_cols = [col[1] for col in conn.execute("PRAGMA table_info(orders)").fetchall()]
-    if 'user_id' not in order_cols:
-        conn.execute("ALTER TABLE orders ADD COLUMN user_id INTEGER")
-    if 'customer_username' not in order_cols:
-        conn.execute("ALTER TABLE orders ADD COLUMN customer_username TEXT")
-    if 'customer_email' not in order_cols:
-        conn.execute("ALTER TABLE orders ADD COLUMN customer_email TEXT")
-    if 'status' not in order_cols:
-        conn.execute("ALTER TABLE orders ADD COLUMN status TEXT DEFAULT 'pending'")
+        # Migration for contact_messages table (is_read column)
+        contact_cols = _mysql_columns(conn, 'contact_messages')
+        if 'is_read' not in contact_cols:
+            conn.execute("ALTER TABLE contact_messages ADD COLUMN is_read INT DEFAULT 0")
+    else:
+        os.makedirs(os.path.join(BACKEND_DIR, 'database'), exist_ok=True)
+        conn = get_db()
+        conn.executescript('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                fullname TEXT NOT NULL,
+                role TEXT DEFAULT 'customer',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
 
-    # Migration for contact_messages table (is_read column)
-    contact_cols = [col[1] for col in conn.execute("PRAGMA table_info(contact_messages)").fetchall()]
-    if 'is_read' not in contact_cols:
-        conn.execute("ALTER TABLE contact_messages ADD COLUMN is_read INTEGER DEFAULT 0")
+            CREATE TABLE IF NOT EXISTS orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                customer_name TEXT NOT NULL,
+                customer_username TEXT,
+                customer_email TEXT,
+                order_details TEXT NOT NULL,
+                total_price REAL NOT NULL,
+                status TEXT DEFAULT 'pending',
+                order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS contact_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL,
+                contact TEXT NOT NULL,
+                message TEXT NOT NULL,
+                is_read INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS product_availability (
+                product_id TEXT PRIMARY KEY,
+                is_available INTEGER DEFAULT 1,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        ''')
+
+        # Migration for existing orders table
+        order_cols = [col[1] for col in conn.execute("PRAGMA table_info(orders)").fetchall()]
+        if 'user_id' not in order_cols:
+            conn.execute("ALTER TABLE orders ADD COLUMN user_id INTEGER")
+        if 'customer_username' not in order_cols:
+            conn.execute("ALTER TABLE orders ADD COLUMN customer_username TEXT")
+        if 'customer_email' not in order_cols:
+            conn.execute("ALTER TABLE orders ADD COLUMN customer_email TEXT")
+        if 'status' not in order_cols:
+            conn.execute("ALTER TABLE orders ADD COLUMN status TEXT DEFAULT 'pending'")
+
+        # Migration for contact_messages table (is_read column)
+        contact_cols = [col[1] for col in conn.execute("PRAGMA table_info(contact_messages)").fetchall()]
+        if 'is_read' not in contact_cols:
+            conn.execute("ALTER TABLE contact_messages ADD COLUMN is_read INTEGER DEFAULT 0")
 
     # Seed default admin if missing
     admin = conn.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()
@@ -397,8 +464,8 @@ def init_db():
     conn.commit()
     conn.close()
 
-    if TURSO_DATABASE_URL and TURSO_AUTH_TOKEN:
-        print(f"[OK] Connected to Turso Cloud Database: {TURSO_DATABASE_URL}")
+    if _using_mysql():
+        print(f"[OK] Connected to MySQL: {MYSQL_USER}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}")
     else:
         print(f"[OK] Database ready at local SQLite: {DB_PATH}")
 
@@ -445,11 +512,13 @@ def serve_images(filename):
 @app.route('/api/health', methods=['GET'])
 @app.route('/health', methods=['GET'])
 def health():
-    db_type = 'turso' if (TURSO_DATABASE_URL and TURSO_AUTH_TOKEN) else 'sqlite'
+    using_mysql = _using_mysql()
     return jsonify({
         'status': 'ok',
-        'database': db_type,
-        'cloud_connected': bool(TURSO_DATABASE_URL and TURSO_AUTH_TOKEN),
+        'database': 'mysql' if using_mysql else 'sqlite',
+        'mysql_host': f"{MYSQL_HOST}:{MYSQL_PORT}" if using_mysql else None,
+        'mysql_database': MYSQL_DATABASE if using_mysql else None,
+        'cloud_connected': using_mysql,
         'timestamp': datetime.utcnow().isoformat()
     })
 
@@ -1248,11 +1317,12 @@ if __name__ == '__main__':
 
     host = '0.0.0.0'  # Listen on all interfaces so phones/devices on the same WiFi can connect.
     lan_ip = _lan_ip()
+    port = int(os.environ.get('PORT', '5000') or '5000')
 
     print()
     print("== Mr. Boy SpecialTea Server ==")
-    print(f"   Local:   http://localhost:5000")
-    print(f"   Network: http://{lan_ip}:5000   <- open this on your phone (same WiFi)")
+    print(f"   Local:   http://localhost:{port}")
+    print(f"   Network: http://{lan_ip}:{port}   <- open this on your phone (same WiFi)")
     print("   Press Ctrl+C to stop")
     print()
-    app.run(debug=True, host=host, port=5000)
+    app.run(debug=True, host=host, port=port)
