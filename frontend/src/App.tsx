@@ -268,7 +268,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-brand-cream/60 dark:bg-[#140e0b] font-sans text-brand-brown dark:text-[#f7f2eb] transition-colors duration-300">
+    <div className="min-h-screen flex flex-col bg-[#f0e4d0] dark:bg-[#241a12] font-sans text-brand-brown dark:text-[#f7f2eb] transition-colors duration-300">
       {/* Navbar */}
       <Navbar
         activeTab={isPageLoading ? targetTab : activeTab}

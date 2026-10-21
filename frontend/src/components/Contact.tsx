@@ -36,6 +36,14 @@ import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { ContactMessage, User } from '../types';
 
+// Pinned store location — powers the live Google Maps embed + directions link (no API key needed).
+// Coordinates are kept as a fallback so the map always drops exactly one marker.
+const STORE_ADDRESS = 'San Mateo Plaza, Santa Ana, San Mateo, Rizal, Philippines';
+const STORE_COORDS = '14.69516,121.11738'; // San Mateo Plaza (OSM geocode)
+// Pin by coordinates so Google drops exactly ONE marker — a text query can return many pins.
+const MAP_EMBED_SRC = `https://www.google.com/maps?q=${encodeURIComponent(STORE_COORDS)}&z=16&output=embed`;
+const DIRECTIONS_URL = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(STORE_ADDRESS)}`;
+
 interface ContactProps {
   currentUser?: User | null;
 }
@@ -814,6 +822,40 @@ export const Contact: React.FC<ContactProps> = ({ currentUser }) => {
                       <span className="inline-block mt-1 text-[11px] font-semibold text-brand-orange">
                         📍 Beside Phase 1 Clubhouse
                       </span>
+                    </div>
+                  </div>
+
+                  {/* Live Location Map */}
+                  <div className="pt-0.5">
+                    <div className="relative w-full overflow-hidden rounded-2xl border border-brand-brown/15 shadow-sm bg-brand-cream/50">
+                      <iframe
+                        title="Mr. Boy SpecialTea live location map"
+                        src={MAP_EMBED_SRC}
+                        className="block h-56 w-full"
+                        style={{ border: 0 }}
+                        loading="lazy"
+                        referrerPolicy="no-referrer-when-downgrade"
+                        allowFullScreen
+                      />
+                      {/* Pinned-location label (kept in our own DOM so it always renders) */}
+                      <span className="pointer-events-none absolute left-2.5 top-2.5 z-10 inline-flex items-center gap-1.5 rounded-full border border-brand-brown/10 bg-white/95 px-2.5 py-1 text-[11px] font-bold text-brand-brown shadow-md">
+                        <MapPin className="h-3.5 w-3.5 text-brand-orange" />
+                        San Mateo Plaza
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+                      <span className="text-[11px] text-muted-foreground">
+                        📍 Live map &middot; San Mateo Plaza, San Mateo, Rizal
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(DIRECTIONS_URL, '_blank')}
+                        className="h-7 gap-1.5 rounded-lg border-brand-brown/20 bg-white px-2.5 text-[11px] font-bold text-brand-brown hover:bg-brand-cream hover:text-brand-brown"
+                      >
+                        <Navigation className="h-3.5 w-3.5 text-brand-orange" />
+                        Get Directions
+                      </Button>
                     </div>
                   </div>
 

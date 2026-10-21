@@ -1,5 +1,5 @@
-import React from 'react';
-import { ArrowRight, Sparkles, Heart, Leaf, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ArrowRight, Sparkles, Heart, Leaf, ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { FeaturedCarousel } from './FeaturedCarousel';
@@ -10,21 +10,98 @@ interface HeroProps {
   onExploreCategory: (category: string) => void;
 }
 
+const HERO_SLIDES = [
+  { src: '/images/storefront.webp', alt: 'Mr. Boy SpecialTea storefront' },
+  { src: '/images/Boy.jpeg', alt: 'Mr. Boy SpecialTea at night' },
+  { src: '/images/menuboard.webp', alt: 'Our menu board' },
+  { src: '/images/475807591_609840018360890_5530054815047393827_n.jpg', alt: 'Freshly poured iced drink' },
+];
+
+const AUTO_MS = 5000;
+
 export const Hero: React.FC<HeroProps> = ({
   onStartOrdering,
   onAddToCart,
   onExploreCategory,
 }) => {
+  const [active, setActive] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const count = HERO_SLIDES.length;
+
+  const next = useCallback(() => setActive((a) => (a + 1) % count), [count]);
+  const prev = useCallback(() => setActive((a) => (a - 1 + count) % count), [count]);
+  const goTo = useCallback((i: number) => setActive(((i % count) + count) % count), [count]);
+
+  useEffect(() => {
+    if (paused) return;
+    const id = window.setInterval(next, AUTO_MS);
+    return () => window.clearInterval(id);
+  }, [next, paused]);
+
   return (
     <div className="flex flex-col gap-8 pb-12">
-      {/* Hero Banner */}
-      <section className="relative overflow-hidden rounded-3xl bg-brand-brown py-12 sm:py-20 text-center text-white shadow-xl mx-2.5 sm:mx-4 mt-2.5 sm:mt-4">
-        <div 
-          className="absolute inset-0 bg-cover bg-center opacity-35 mix-blend-overlay"
-          style={{ backgroundImage: "url('/images/Boy.jpeg')" }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-brand-brown via-brand-brown/85 to-brand-brown/60" />
+      {/* Hero Banner Carousel */}
+      <section
+        className="relative overflow-hidden rounded-3xl bg-brand-brown py-12 sm:py-20 text-center text-white shadow-xl mx-2.5 sm:mx-4 mt-2.5 sm:mt-4 group/carousel"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        aria-roledescription="carousel"
+        aria-label="Mr. Boy SpecialTea highlights"
+      >
+        {/* Slides */}
+        {HERO_SLIDES.map((slide, i) => (
+          <div
+            key={slide.src}
+            aria-hidden={i !== active}
+            className={`absolute inset-0 transition-opacity duration-[1200ms] ease-in-out ${
+              i === active ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            <div
+              className="absolute inset-0 bg-cover bg-center kenburns"
+              style={{ backgroundImage: `url('${slide.src}')` }}
+            />
+          </div>
+        ))}
 
+        {/* Readability scrim */}
+        <div className="absolute inset-0 bg-gradient-to-t from-brand-brown via-brand-brown/75 to-brand-brown/45" />
+
+        {/* Prev / Next controls */}
+        <button
+          type="button"
+          onClick={prev}
+          aria-label="Previous slide"
+          className="absolute left-2 sm:left-4 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/35 p-2 sm:p-2.5 text-white backdrop-blur-sm transition hover:bg-black/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-amber/70 opacity-0 group-hover/carousel:opacity-100 sm:opacity-60 sm:hover:opacity-100"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          onClick={next}
+          aria-label="Next slide"
+          className="absolute right-2 sm:right-4 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/35 p-2 sm:p-2.5 text-white backdrop-blur-sm transition hover:bg-black/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-amber/70 opacity-0 group-hover/carousel:opacity-100 sm:opacity-60 sm:hover:opacity-100"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
+
+        {/* Dot indicators */}
+        <div className="absolute bottom-3 sm:bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2">
+          {HERO_SLIDES.map((slide, i) => (
+            <button
+              key={slide.src}
+              type="button"
+              onClick={() => goTo(i)}
+              aria-label={`Go to slide ${i + 1}`}
+              aria-current={i === active}
+              className={`h-2 rounded-full transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-amber/70 ${
+                i === active ? 'w-6 bg-brand-amber' : 'w-2 bg-white/50 hover:bg-white/80'
+              }`}
+            />
+          ))}
+        </div>
+
+        {/* Foreground content */}
         <div className="relative z-10 mx-auto flex max-w-3xl flex-col items-center gap-5 sm:gap-6 px-4">
           <div className="relative">
             <img

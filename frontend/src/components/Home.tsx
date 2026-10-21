@@ -13,6 +13,14 @@ import { FeaturedCarousel } from './FeaturedCarousel';
 import { ProductModal } from './ProductModal';
 import { MenuItem } from '../types';
 
+// Landing hero background photo carousel (store + brand imagery)
+const HERO_BG_SLIDES = [
+  '/images/storefront.webp',
+  '/images/Boy.jpeg',
+  '/images/menuboard.webp',
+  '/images/475807591_609840018360890_5530054815047393827_n.jpg',
+];
+
 interface HomeProps {
   onStartOrdering: () => void;
   onAddToCart: (itemName: string, size: string, price: number) => void;
@@ -173,6 +181,15 @@ export const Home: React.FC<HomeProps> = ({
   const [heroSelectedSize, setHeroSelectedSize] = useState<number>(0);
   const [addedItemName, setAddedItemName] = useState<string | null>(null);
   const autoPlayRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Background photo carousel (rotates the hero/brand imagery)
+  const [bgIndex, setBgIndex] = useState<number>(0);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setBgIndex((i) => (i + 1) % HERO_BG_SLIDES.length);
+    }, 5500);
+    return () => window.clearInterval(id);
+  }, []);
 
   // Auto rotate hero slide every 6 seconds
   useEffect(() => {
@@ -382,14 +399,25 @@ export const Home: React.FC<HomeProps> = ({
 
       {/* ── 1. HERO BANNER SECTION ─────────────────────────────────── */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-brown via-[#221510] to-brand-coffee py-8 sm:py-20 text-white shadow-2xl mx-2.5 sm:mx-6 border border-brand-brown/40">
-        {/* Background Image & Ambient Glow Circles */}
-        <div 
-          className="absolute inset-0 bg-cover bg-center opacity-20 mix-blend-luminosity scale-105 transition-transform duration-1000"
-          style={{ backgroundImage: "url('/images/Boy.jpeg')" }}
-        />
+        {/* Background Photo Carousel (crossfade + Ken Burns) */}
+        {HERO_BG_SLIDES.map((src, i) => (
+          <div
+            key={src}
+            aria-hidden={i !== bgIndex}
+            className={`absolute inset-0 transition-opacity duration-[1400ms] ease-in-out ${
+              i === bgIndex ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            <div
+              className="absolute inset-0 bg-cover bg-center mix-blend-luminosity kenburns"
+              style={{ backgroundImage: `url('${src}')` }}
+            />
+          </div>
+        ))}
+        {/* Ambient Glow Circles */}
         <div className="absolute -top-24 -left-24 h-96 w-96 rounded-full bg-brand-amber/15 blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-brand-orange/20 blur-3xl pointer-events-none" />
-        <div className="absolute inset-0 bg-gradient-to-r from-brand-brown/95 via-brand-brown/90 to-brand-coffee/85" />
+        <div className="absolute inset-0 bg-gradient-to-r from-brand-brown/90 via-brand-brown/80 to-brand-coffee/70" />
 
         <div className="relative z-10 container mx-auto px-4 sm:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-10 items-center">
