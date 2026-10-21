@@ -1,0 +1,243 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 30 33% 96%;
+    --foreground: 20 14% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 20 14% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 14% 12%;
+
+    --primary: 25 34% 33%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 30 20% 90%;
+    --secondary-foreground: 20 14% 12%;
+
+    --muted: 30 20% 92%;
+    --muted-foreground: 25 10% 45%;
+
+    --accent: 30 80% 65%;
+    --accent-foreground: 20 14% 12%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 30 15% 88%;
+    --input: 30 15% 88%;
+    --ring: 25 34% 33%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 24 20% 8%;
+    --foreground: 35 30% 95%;
+
+    --card: 24 22% 12%;
+    --card-foreground: 35 30% 95%;
+
+    --popover: 24 22% 12%;
+    --popover-foreground: 35 30% 95%;
+
+    --primary: 30 85% 62%;
+    --primary-foreground: 24 25% 10%;
+
+    --secondary: 24 16% 18%;
+    --secondary-foreground: 35 30% 95%;
+
+    --muted: 24 16% 17%;
+    --muted-foreground: 30 15% 65%;
+
+    --accent: 30 85% 62%;
+    --accent-foreground: 24 25% 10%;
+
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 24 15% 20%;
+    --input: 24 15% 20%;
+    --ring: 30 85% 62%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased selection:bg-brand-amber selection:text-brand-brown transition-colors duration-300;
+    background-color: #f6f1ec;
+  }
+  .dark body {
+    background-color: #140e0b;
+    color: #f7f2eb;
+  }
+}
+
+/* Dark mode enhancements for roasted cafe aesthetic */
+.dark {
+  color-scheme: dark;
+}
+
+.dark .bg-white {
+  background-color: #211914;
+}
+
+.dark .bg-brand-cream,
+.dark .bg-brand-cream\/50,
+.dark .bg-brand-cream\/60,
+.dark .bg-brand-cream\/80 {
+  background-color: #2b211a;
+}
+
+.dark .text-brand-brown {
+  color: #f5ebe0;
+}
+
+.dark .border-brand-brown\/10,
+.dark .border-brand-brown\/15,
+.dark .border-brand-brown\/20 {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark .bg-slate-50,
+.dark .bg-slate-50\/50,
+.dark .bg-slate-100 {
+  background-color: #19130f;
+}
+
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-200\/70 {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.dark .text-muted-foreground {
+  color: #bfaea0;
+}
+
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: #19130f;
+  color: #f7f2eb;
+  border-color: #3d2e24;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #8c7b6f;
+}
+
+.dark table thead tr {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark table tbody tr {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.dark table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.dark .shadow-xl,
+.dark .shadow-2xl,
+.dark .shadow-md {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes marquee {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes marquee-reverse {
+  0% {
+    transform: translate3d(-50%, 0, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 65s linear infinite;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+.animate-marquee-slow {
+  display: flex;
+  width: max-content;
+  animation: marquee 90s linear infinite;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.animate-marquee-slow:hover {
+  animation-play-state: paused;
+}
+
+.animate-marquee-fast {
+  display: flex;
+  width: max-content;
+  animation: marquee 40s linear infinite;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.animate-marquee-fast:hover {
+  animation-play-state: paused;
+}
+
+/* 3D Card Hover & Drag Animations */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.translate-z-10 {
+  transform: translateZ(10px);
+}
+
+.translate-z-20 {
+  transform: translateZ(20px);
+}
+
+.translate-z-30 {
+  transform: translateZ(30px);
+}
+
+/* Card subtle ambient glow on active drag & hover */
+.card-ambient-glow {
+  transition: box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.15s ease-out;
+}
+
+.card-ambient-glow:hover {
+  box-shadow: 0 20px 35px -10px rgba(111, 78, 55, 0.18), 0 10px 15px -5px rgba(255, 77, 0, 0.08);
+}
+
+.dark .card-ambient-glow:hover {
+  box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.7), 0 0 20px 2px rgba(255, 165, 75, 0.12);
+}
+
