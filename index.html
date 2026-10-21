@@ -3,21 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mr.Boy SpecialTea</title>
+<title>Mr. Boy SpecialTea | Milk Tea, Coffee &amp; More</title>
+<meta name="description" content="Discover milk tea, fruit tea, coffee, frappes, and snacks at Mr. Boy SpecialTea in San Mateo.">
 <link rel="stylesheet" href="public/css/style.css">
-<link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 <link rel="icon" sizes="48x48" href="public/images/IMG_2476.jpeg">
 </head>
 <body>
 
 <div class="page-wrapper">
 
-  <nav>
+  <nav aria-label="Main navigation">
+    <button class="nav-brand" type="button" onclick="showSection('home')" aria-label="Mr. Boy SpecialTea home">
+      <img src="public/images/IMG_2476.jpeg" alt="">
+      <span>Mr. Boy <strong>SpecialTea</strong></span>
+    </button>
     <div class="nav-links">
-      <button onclick="showSection('home')">Home</button>
-      <button onclick="showSection('menu')">Menu</button>
-      <button onclick="showSection('cart')">Order</button>
-      <button onclick="showSection('contact')">Contact</button>
+      <button type="button" onclick="showSection('home')">Home</button>
+      <button type="button" onclick="showSection('menu')">Menu</button>
+      <button type="button" onclick="showSection('cart')">Order</button>
+      <button type="button" onclick="showSection('contact')">Contact</button>
     </div>
     <div class="nav-auth" id="nav-auth">
       <!-- Injected dynamically by app.js -->
@@ -28,42 +33,56 @@
   <!-- ===== HOME SECTION ===== -->
   <div id="home" class="section active">
     <header class="hero">
-      <div class="hero-text">
-        <div class="hero h1"></div>
+      <div class="hero-copy">
+        <p class="hero-eyebrow">YOUR LOCAL TEA &amp; COFFEE STOP</p>
+        <h1>A little joy<br>in every sip.</h1>
+        <p class="hero-description">From creamy milk tea to refreshing fruit blends and coffee favorites, find your next go-to drink at Mr. Boy SpecialTea.</p>
+        <div class="hero-actions">
+          <button type="button" id="start-ordering">Explore the menu</button>
+          <button type="button" class="hero-secondary" onclick="showSection('contact')">Visit us</button>
+        </div>
       </div>
       <section class="logo">
         <img src="public/images/IMG_2476.jpeg" alt="Mr. Boy SpecialTea Logo" />
-        <h2>Mr. Boy SpecialTea</h2>
-        <p>San Mateo Plaza</p>
+        <p class="logo-location">SAN MATEO PLAZA</p>
       </section>
     </header>
 
     <section class="light">
-      <h2>Our Approach</h2>
-      <p>Here's how we make it better.</p>
+      <p class="section-eyebrow">FIND YOUR FAVORITE</p>
+      <h2>Made for your kind of moment</h2>
+      <p class="section-intro">A menu of familiar favorites and fun new flavors, ready when you are.</p>
       <div class="card-grid">
         <div class="card small">
-          <h3>Simple Flavors</h3>
-          <p>Easy, balanced blends.</p>
+          <span class="feature-number">01</span>
+          <h3>Milk Tea</h3>
+          <p>Creamy classics and playful, flavor-packed blends.</p>
         </div>
         <div class="card small">
-          <h3>Clean Labels</h3>
-          <p>Clear, honest ingredients.</p>
+          <span class="feature-number">02</span>
+          <h3>Fruit Tea</h3>
+          <p>Bright, refreshing flavors for a lighter sip.</p>
         </div>
         <div class="card small">
-          <h3>Ethically Sourced</h3>
-          <p>Fair &amp; sustainable farms.</p>
+          <span class="feature-number">03</span>
+          <h3>Coffee &amp; Frappe</h3>
+          <p>Cool pick-me-ups and cozy coffee favorites.</p>
         </div>
         <div class="card small">
-          <h3>Balanced Sweetness</h3>
-          <p>Naturally brewed, lightly sweetened.</p>
+          <span class="feature-number">04</span>
+          <h3>Something to Snack On</h3>
+          <p>Round out your drink with a little something extra.</p>
         </div>
       </div>
     </section>
 
     <section class="cta">
-      <p>&ldquo;Welcome to Mr.Boy SpecialTea. Enjoy the taste of our drinks at an affordable price! From Milk Tea, Fruit Tea, and Coffee!&rdquo;</p>
-      <button id="start-ordering">Start Ordering</button>
+      <div>
+        <p class="cta-eyebrow">YOUR NEXT FAVORITE IS WAITING</p>
+        <h2>Take a look at the menu.</h2>
+        <p>Choose a drink, pick your size, and place your order.</p>
+      </div>
+      <button type="button" class="cta-button" onclick="showSection('menu')">Browse the menu</button>
     </section>
   </div>
 
