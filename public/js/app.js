@@ -753,3 +753,411 @@ document.addEventListener('DOMContentLoaded', () => {
     initFeaturedSlider();
 });
 
+
+/* ============================================================
+   LANDING PAGE — replica of the React home view
+   (marquee, hero photo carousel, featured slider, categories,
+    theme toggle, mobile drawer)
+   ============================================================ */
+
+const LP_HERO_BG = [
+    'public/images/storefront.webp',
+    'public/images/Boy.jpeg',
+    'public/images/menuboard.webp',
+    'public/images/475807591_609840018360890_5530054815047393827_n.jpg'
+];
+
+const LP_BEST_SELLERS = [
+    { name: 'CreamCheese Purple Taro', cat: 'Milktea',  badge: '👑 #1 Best Seller',  rating: 5.0, ordered: '480+ ordered', img: 'public/images/Taro.jpeg',                prices: [{ size: '16oz', price: 29 }, { size: '22oz', price: 39 }] },
+    { name: 'Caramel Macchiato',       cat: 'Iced Coffee', badge: '🔥 Top Coffee Pick', rating: 4.9, ordered: '390+ ordered', img: 'public/images/caramelmacchiato.jpg',      prices: [{ size: '16oz', price: 29 }, { size: '22oz', price: 39 }] },
+    { name: 'Wintermelon Milk Tea',    cat: 'Milktea',  badge: '⭐ Crowd Favorite',  rating: 4.9, ordered: '340+ ordered', img: 'public/images/wintermelon.jpg',           prices: [{ size: '16oz', price: 29 }, { size: '22oz', price: 39 }] },
+    { name: 'Matcha Green Tea',        cat: 'Milktea',  badge: '🍵 Japanese Classic', rating: 4.9, ordered: '290+ ordered', img: 'public/images/matcha.jpeg',               prices: [{ size: '16oz', price: 29 }, { size: '22oz', price: 39 }] },
+    { name: 'Passion Fruit Tea',       cat: 'Fruit Tea', badge: '🌴 Refreshing',      rating: 4.8, ordered: '270+ ordered', img: 'public/images/passionfruit.jpg',          prices: [{ size: '16oz', price: 29 }, { size: '22oz', price: 39 }] },
+    { name: 'Blueberry Burst Frappé',  cat: 'Frappé',   badge: '✨ Sweet Bliss',     rating: 4.9, ordered: '240+ ordered', img: 'public/images/blueberryburstfrappee.jpg', prices: [{ size: '16oz', price: 29 }, { size: '22oz', price: 39 }] },
+    { name: 'Dark Chocolate',          cat: 'Milktea',  badge: '🍫 Choco Treat',     rating: 4.9, ordered: '285+ ordered', img: 'public/images/dark choco.jpg',            prices: [{ size: '16oz', price: 29 }, { size: '22oz', price: 39 }] },
+    { name: 'Crispy French Fries',     cat: 'Snacks',   badge: '🍟 Perfect Match',   rating: 4.8, ordered: '350+ ordered', img: 'public/images/fries.jpeg',                prices: [{ size: 'Medium', price: 29 }, { size: 'Large', price: 39 }] }
+];
+
+const LP_CATEGORIES = [
+    { id: 'milktea', name: 'Milktea',    count: '19 Flavors',  price: 'From ₱29', img: 'public/images/Taro.jpeg',                tag: 'Bestseller' },
+    { id: 'coffee',  name: 'Iced Coffee', count: '6 Variants', price: 'From ₱29', img: 'public/images/caramelmacchiato.jpg',     tag: 'Daily Energy' },
+    { id: 'fruit',   name: 'Fruit Tea',  count: '7 Flavors',   price: 'From ₱29', img: 'public/images/passionfruit.jpg',         tag: 'Refreshing' },
+    { id: 'frappe',  name: 'Frappé',     count: '5 Flavors',   price: 'From ₱29', img: 'public/images/blueberryburstfrappee.jpg', tag: 'Cream-based' },
+    { id: 'hot',     name: 'Hot Cups',   count: '6 Choices',   price: '₱35 Flat',  img: 'public/images/Hotcoffee.jpeg',           tag: 'Cozy Morning' },
+    { id: 'snack',   name: 'Snacks',     count: 'Crispy Fries', price: 'From ₱29', img: 'public/images/fries.jpeg',               tag: 'Perfect Pair' }
+];
+
+let lpFeatureIndex = 0;
+let lpFeatureSize = 0;
+let lpFeatureTimer = null;
+let lpHeroBgIndex = 0;
+let lpHeroBgTimer = null;
+let lpAddedName = '';
+
+/** Spaces in filenames (e.g. "dark choco.jpg") must be percent-encoded. */
+function lpImg(path) {
+    return encodeURI(path);
+}
+
+function lpEscape(text) {
+    return String(text).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+
+/* ---------- 0. Best-sellers marquee ---------- */
+
+function lpRenderMarquee() {
+    const track = document.getElementById('marquee-track');
+    if (!track) return;
+
+    // Three copies give a seamless loop (track travels exactly one third).
+    let html = '';
+    for (let copy = 0; copy < 3; copy++) {
+        LP_BEST_SELLERS.forEach((item, i) => {
+            const base = item.prices[0];
+            const sizeLabel = item.prices.length > 1 ? item.prices.map(p => p.size).join(' / ') : 'Standard';
+            html += `
+                <div class="mq-card" data-lp-index="${i}" role="button" tabindex="0"
+                     aria-label="Add ${lpEscape(item.name)} ${base.size} for ${base.price} pesos">
+                    <span class="mq-thumb">
+                        <img src="${lpImg(item.img)}" alt="${lpEscape(item.name)}" loading="lazy">
+                        <span class="mq-rating">★ ${item.rating}</span>
+                    </span>
+                    <span class="mq-info">
+                        <span class="mq-badge">${lpEscape(item.badge)}</span>
+                        <span class="mq-name">${lpEscape(item.name)}</span>
+                        <span class="mq-prices">
+                            <span class="mq-price">₱${base.price}</span>
+                            <span class="mq-size">${lpEscape(sizeLabel)}</span>
+                        </span>
+                    </span>
+                    <button type="button" class="mq-add" data-lp-add="${i}">+ ₱${base.price}</button>
+                </div>`;
+        });
+    }
+    track.innerHTML = html;
+
+    // Tap anywhere on a card (or its button) quick-adds the base size.
+    track.addEventListener('click', (e) => {
+        const card = e.target.closest('.mq-card');
+        if (!card) return;
+        const item = LP_BEST_SELLERS[Number(card.dataset.lpIndex)];
+        if (item) lpQuickAdd(item, item.prices[0]);
+    });
+    track.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const card = e.target.closest('.mq-card');
+        if (!card) return;
+        e.preventDefault();
+        const item = LP_BEST_SELLERS[Number(card.dataset.lpIndex)];
+        if (item) lpQuickAdd(item, item.prices[0]);
+    });
+}
+
+
+/* ---------- 1a. Hero background photo crossfade ---------- */
+
+function lpRenderHeroBgs() {
+    const wrap = document.getElementById('hero-bgs');
+    if (!wrap) return;
+
+    wrap.innerHTML = LP_HERO_BG.map((src, i) => `
+        <span class="lp-hero-bg${i === 0 ? ' is-active' : ''}" style="background-image:url('${lpImg(src)}')"></span>
+    `).join('');
+
+    if (LP_HERO_BG.length < 2) return;
+    lpHeroBgTimer = setInterval(() => {
+        const slides = wrap.children;
+        if (!slides.length) return;
+        slides[lpHeroBgIndex].classList.remove('is-active');
+        lpHeroBgIndex = (lpHeroBgIndex + 1) % slides.length;
+        slides[lpHeroBgIndex].classList.add('is-active');
+    }, 6000);
+}
+
+
+/* ---------- 1b. Featured best-seller slider ---------- */
+
+function lpRenderFeatured() {
+    const stage = document.getElementById('featured-stage');
+    const dots = document.getElementById('featured-dots');
+    const total = document.getElementById('featured-total');
+    if (!stage || !dots) return;
+
+    const item = LP_BEST_SELLERS[lpFeatureIndex];
+    const priceObj = item.prices[lpFeatureSize] || item.prices[0];
+    const isAdded = lpAddedName === item.name;
+
+    stage.innerHTML = `
+        <span class="lp-stage-media">
+            <img src="${lpImg(item.img)}" alt="${lpEscape(item.name)}">
+            <span class="lp-stage-scrim"></span>
+            <span class="lp-stage-badge">✨ ${lpEscape(item.badge)}</span>
+            <button type="button" class="lp-stage-preview" data-lp-preview>👁 Preview</button>
+            <span class="lp-stage-foot">
+                <span class="lp-stage-row">
+                    <span class="lp-stage-cat">${lpEscape(item.cat)}</span>
+                    <span class="lp-stage-rating">★ ${item.rating} (${item.ordered})</span>
+                </span>
+                <span class="lp-stage-name">${lpEscape(item.name)}</span>
+                <span class="lp-stage-sizes">
+                    ${item.prices.map((p, i) => `
+                        <button type="button" class="lp-size-chip${i === lpFeatureSize ? ' is-active' : ''}"
+                                data-lp-size="${i}">${p.size} ₱${p.price}</button>`).join('')}
+                </span>
+                <span class="lp-stage-row lp-stage-actions">
+                    <span class="lp-stage-total">Total: ₱${priceObj.price}</span>
+                    <button type="button" class="lp-stage-add${isAdded ? ' is-added' : ''}" data-lp-featured-add>
+                        ${isAdded ? '✓ Added to Cart!' : '🛍 + Quick Add'}
+                    </button>
+                </span>
+            </span>
+        </span>`;
+
+    const idxEl = document.getElementById('featured-index');
+    const totalEl = document.getElementById('featured-total');
+    if (idxEl) idxEl.textContent = lpFeatureIndex + 1;
+    if (totalEl) totalEl.textContent = LP_BEST_SELLERS.length;
+
+    dots.innerHTML = LP_BEST_SELLERS.map((_, i) => `
+        <button type="button" class="lp-dot${i === lpFeatureIndex ? ' is-active' : ''}"
+                data-lp-dot="${i}" role="tab" aria-selected="${i === lpFeatureIndex}"
+                aria-label="Jump to slide ${i + 1}"></button>`).join('');
+}
+
+function lpGoFeature(index) {
+    const n = LP_BEST_SELLERS.length;
+    lpFeatureIndex = ((index % n) + n) % n;
+    lpFeatureSize = 0;
+    lpRenderFeatured();
+    lpRestartFeatureTimer();
+}
+
+function lpRestartFeatureTimer() {
+    if (lpFeatureTimer) clearInterval(lpFeatureTimer);
+    lpFeatureTimer = setInterval(() => lpGoFeature(lpFeatureIndex + 1), 6000);
+}
+
+function lpSetFeatureSize(sizeIndex) {
+    lpFeatureSize = sizeIndex;
+    lpRenderFeatured();
+}
+
+function lpInitFeatured() {
+    const stage = document.getElementById('featured-stage');
+    if (!stage) return;
+
+    lpRenderFeatured();
+    lpRestartFeatureTimer();
+
+    document.getElementById('featured-prev')
+        ?.addEventListener('click', () => lpGoFeature(lpFeatureIndex - 1));
+    document.getElementById('featured-next')
+        ?.addEventListener('click', () => lpGoFeature(lpFeatureIndex + 1));
+
+    stage.addEventListener('click', (e) => {
+        const chip = e.target.closest('[data-lp-size]');
+        if (chip) return lpSetFeatureSize(Number(chip.dataset.lpSize));
+
+        if (e.target.closest('[data-lp-preview]')) {
+            const item = LP_BEST_SELLERS[lpFeatureIndex];
+            return lpToast(`✨ ${item.name} — ${item.cat} · ★ ${item.rating} (${item.ordered})`);
+        }
+        if (e.target.closest('[data-lp-featured-add]')) {
+            const item = LP_BEST_SELLERS[lpFeatureIndex];
+            return lpQuickAdd(item, item.prices[lpFeatureSize] || item.prices[0]);
+        }
+        const media = e.target.closest('.lp-stage-media');
+        if (media) {
+            const item = LP_BEST_SELLERS[lpFeatureIndex];
+            return lpToast(`✨ ${item.name} — ${item.cat} · ★ ${item.rating} (${item.ordered})`);
+        }
+    });
+
+    document.getElementById('featured-dots')?.addEventListener('click', (e) => {
+        const dot = e.target.closest('[data-lp-dot]');
+        if (dot) lpGoFeature(Number(dot.dataset.lpDot));
+    });
+
+    // Hovering the card pauses the auto-advance (mirrors the React behaviour).
+    const card = stage.closest('.lp-featured-card');
+    card?.addEventListener('mouseenter', () => { if (lpFeatureTimer) clearInterval(lpFeatureTimer); });
+    card?.addEventListener('mouseleave', lpRestartFeatureTimer);
+}
+
+
+/* ---------- Quick add + toast ---------- */
+
+function lpQuickAdd(item, priceObj) {
+    // Mirror addToCart(), but stay on the landing page instead of
+    // jumping straight to the cart section.
+    cart.push({ item: `${item.name} ${priceObj.size}`, price: priceObj.price, addons: [] });
+    total += priceObj.price;
+    renderCart();
+    updatePearlButton();
+    updateGenerateButton();
+
+    lpAddedName = item.name;
+    lpRenderFeatured();
+    lpSyncCartBadge();
+    lpToast(`✓ ${item.name} (${priceObj.size}) added — ₱${priceObj.price}`);
+}
+
+function lpSyncCartBadge() {
+    const badge = document.getElementById('nav-cart-count');
+    if (!badge) return;
+    badge.textContent = cart.length;
+    badge.hidden = cart.length === 0;
+}
+
+function lpToast(message) {
+    let toast = document.getElementById('lp-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'lp-toast';
+        toast.className = 'lp-toast';
+        toast.setAttribute('role', 'status');
+        document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add('is-visible');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => toast.classList.remove('is-visible'), 2600);
+}
+
+
+/* ---------- 2. Category tiles ---------- */
+
+function lpRenderCategories() {
+    const grid = document.getElementById('category-grid');
+    if (!grid) return;
+
+    grid.innerHTML = LP_CATEGORIES.map(cat => `
+        <button type="button" class="lp-cat-card" data-lp-cat="${cat.id}">
+            <span class="lp-cat-media">
+                <img src="${lpImg(cat.img)}" alt="${lpEscape(cat.name)}" loading="lazy">
+                <span class="lp-cat-scrim"></span>
+                <span class="lp-cat-price">${lpEscape(cat.price)}</span>
+            </span>
+            <span class="lp-cat-body">
+                <span class="lp-cat-name">${lpEscape(cat.name)}</span>
+                <span class="lp-cat-count">${lpEscape(cat.count)}</span>
+                <span class="lp-cat-tag">${lpEscape(cat.tag)}</span>
+            </span>
+        </button>`).join('');
+
+    grid.addEventListener('click', (e) => {
+        const card = e.target.closest('[data-lp-cat]');
+        if (card) lpExploreCategory(card.dataset.lpCat);
+    });
+}
+
+/** Jump to the menu section and scroll its heading into view. */
+function lpExploreCategory(id) {
+    const map = {
+        milktea: 'milktea-sec', coffee: 'coffee-sec', fruit: 'fruit-sec',
+        frappe: 'frappe-sec', hot: 'hot-sec', snack: 'snack-sec'
+    };
+    showSection('menu');
+    const target = document.getElementById(map[id]);
+    if (target) setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+}
+
+
+/* ---------- Theme toggle ---------- */
+
+function lpApplyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.querySelectorAll('[data-theme-toggle]').forEach(btn => {
+        btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+    });
+}
+
+function lpInitTheme() {
+    let stored = null;
+    try { stored = localStorage.getItem('mbst-theme'); } catch (e) { /* storage blocked */ }
+    lpApplyTheme(stored === 'light' ? 'light' : 'dark');
+
+    document.querySelectorAll('[data-theme-toggle]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            lpApplyTheme(next);
+            try { localStorage.setItem('mbst-theme', next); } catch (e) { /* ignore */ }
+        });
+    });
+}
+
+
+/* ---------- Nav: active state + mobile drawer ---------- */
+
+function lpSyncNav(sectionId) {
+    document.querySelectorAll('[data-nav]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.nav === sectionId);
+    });
+}
+
+function lpCloseDrawer() {
+    const drawer = document.getElementById('nav-drawer');
+    const burger = document.getElementById('nav-burger');
+    if (drawer) drawer.hidden = true;
+    if (burger) {
+        burger.textContent = '☰';
+        burger.setAttribute('aria-expanded', 'false');
+        burger.setAttribute('aria-label', 'Open navigation menu');
+    }
+}
+
+function lpInitNav() {
+    // Wrap showSection so the active pill and drawer stay in sync no matter
+    // which caller (inline onclick or app.js internals) triggers it.
+    const original = window.showSection;
+    if (typeof original === 'function' && !window.showSection.__lpWrapped) {
+        const wrapped = function (sectionId) {
+            original.call(this, sectionId);
+            lpSyncNav(sectionId);
+            lpCloseDrawer();
+        };
+        wrapped.__lpWrapped = true;
+        window.showSection = wrapped;
+    }
+
+    const burger = document.getElementById('nav-burger');
+    const drawer = document.getElementById('nav-drawer');
+    burger?.addEventListener('click', () => {
+        const open = drawer.hidden;
+        drawer.hidden = !open;
+        burger.textContent = open ? '✕' : '☰';
+        burger.setAttribute('aria-expanded', String(open));
+        burger.setAttribute('aria-label', open ? 'Close navigation menu' : 'Open navigation menu');
+    });
+
+    // Close the drawer when a tap lands outside it.
+    document.addEventListener('click', (e) => {
+        if (!drawer || drawer.hidden) return;
+        if (!e.target.closest('.site-nav')) lpCloseDrawer();
+    });
+
+    lpSyncNav('home');
+}
+
+
+/* ---------- Boot ---------- */
+
+document.addEventListener('DOMContentLoaded', () => {
+    // The legacy carousel markup is not present on this page, so stop the
+    // empty 4.5s timer started above instead of letting it spin uselessly.
+    if (!document.getElementById('carousel-track') && sliderTimer) {
+        clearInterval(sliderTimer);
+        sliderTimer = null;
+    }
+
+    lpInitTheme();
+    lpInitNav();
+    lpRenderMarquee();
+    lpRenderHeroBgs();
+    lpInitFeatured();
+    lpRenderCategories();
+    lpSyncCartBadge();
+});
+

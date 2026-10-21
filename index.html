@@ -6,97 +6,163 @@
 <title>Mr. Boy SpecialTea | Milk Tea, Coffee &amp; More</title>
 <meta name="description" content="Discover milk tea, fruit tea, coffee, frappes, and snacks at Mr. Boy SpecialTea in San Mateo.">
 <link rel="stylesheet" href="public/css/style.css">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Lilita+One&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 <link rel="icon" sizes="48x48" href="public/images/IMG_2476.jpeg">
 </head>
 <body>
 
 <div class="page-wrapper">
 
-  <nav aria-label="Main navigation">
-    <button class="nav-brand" type="button" onclick="showSection('home')" aria-label="Mr. Boy SpecialTea home">
-      <img src="public/images/IMG_2476.jpeg" alt="">
-      <span>Mr. Boy <strong>SpecialTea</strong></span>
-    </button>
-    <div class="nav-links">
-      <button type="button" onclick="showSection('home')">Home</button>
-      <button type="button" onclick="showSection('menu')">Menu</button>
-      <button type="button" onclick="showSection('cart')">Order</button>
-      <button type="button" onclick="showSection('contact')">Contact</button>
+  <nav aria-label="Main navigation" class="site-nav">
+    <div class="nav-inner">
+      <button class="nav-brand" type="button" onclick="showSection('home')" aria-label="Mr. Boy SpecialTea home">
+        <img src="public/images/IMG_2476.jpeg" alt="">
+        <span class="nav-brand-text">
+          <span class="nav-brand-name">Mr. Boy SpecialTea</span>
+          <span class="nav-brand-sub">Dela Costa V, Montalban</span>
+        </span>
+      </button>
+
+      <!-- Desktop links -->
+      <div class="nav-links">
+        <button type="button" class="active" data-nav="home" onclick="showSection('home')">🏠 <span>Home</span></button>
+        <button type="button" data-nav="menu" onclick="showSection('menu')">🧋 <span>Menu</span></button>
+        <button type="button" data-nav="cart" onclick="showSection('cart')">🛒 <span>Order</span></button>
+        <button type="button" data-nav="contact" onclick="showSection('contact')">📍 <span>Contact</span></button>
+      </div>
+
+      <!-- Desktop actions -->
+      <div class="nav-actions">
+        <button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch color theme">☀️</button>
+        <div class="nav-auth" id="nav-auth">
+          <!-- Injected dynamically by app.js -->
+          <button onclick="openAuthModal('login')" class="auth-nav-btn">🔑 Login / Register</button>
+        </div>
+      </div>
+
+      <!-- Mobile actions -->
+      <div class="nav-mobile">
+        <button type="button" class="icon-btn" data-theme-toggle aria-label="Switch color theme">☀️</button>
+        <button type="button" class="icon-btn" onclick="showSection('cart')" aria-label="Order cart">
+          🛒<span class="cart-badge" id="nav-cart-count" hidden>0</span>
+        </button>
+        <button type="button" class="icon-btn" id="nav-burger" aria-label="Open navigation menu" aria-expanded="false">☰</button>
+      </div>
     </div>
-    <div class="nav-auth" id="nav-auth">
-      <!-- Injected dynamically by app.js -->
-      <button onclick="openAuthModal('login')" class="auth-nav-btn">🔑 Login / Register</button>
+
+    <!-- Mobile drawer -->
+    <div class="nav-drawer" id="nav-drawer" hidden>
+      <div class="nav-drawer-grid">
+        <button type="button" data-nav="home" onclick="showSection('home')">🏠 Home</button>
+        <button type="button" data-nav="menu" onclick="showSection('menu')">🧋 Menu</button>
+        <button type="button" data-nav="cart" onclick="showSection('cart')">🛒 Order Cart</button>
+        <button type="button" data-nav="contact" onclick="showSection('contact')">📍 Contact</button>
+      </div>
+      <div class="nav-drawer-auth" id="drawer-auth">
+        <button onclick="openAuthModal('login')" class="auth-nav-btn">🔑 Login / Register</button>
+      </div>
     </div>
   </nav>
 
   <!-- ===== HOME SECTION ===== -->
   <div id="home" class="section active">
-    <header class="hero">
-      <div class="hero-copy">
-        <p class="hero-eyebrow">YOUR LOCAL TEA &amp; COFFEE STOP</p>
-        <h1>A little joy<br>in every sip.</h1>
-        <p class="hero-description">From creamy milk tea to refreshing fruit blends and coffee favorites, find your next go-to drink at Mr. Boy SpecialTea.</p>
-        <div class="hero-actions">
-          <button type="button" id="start-ordering">Explore the menu</button>
-          <button type="button" class="hero-secondary" onclick="showSection('contact')">Visit us</button>
+    <!-- ── 0. TOP BEST SELLERS LIVE STREAM ─────────────────────── -->
+    <section class="lp-marquee" aria-label="Top best sellers">
+      <span class="lp-marquee-glow left" aria-hidden="true"></span>
+      <span class="lp-marquee-glow right" aria-hidden="true"></span>
+
+      <div class="lp-marquee-head">
+        <div class="lp-marquee-head-main">
+          <span class="lp-marquee-title">🔥 Top Best Sellers Live Stream</span>
+          <span class="lp-marquee-sub">• Tap any drink to preview ingredients or quick-add</span>
+        </div>
+        <div class="lp-marquee-head-side">
+          <span class="lp-marquee-price">Starting at ₱29</span>
+          <span class="lp-marquee-hint">Hover to Pause</span>
         </div>
       </div>
-      <section class="logo">
-        <img src="public/images/IMG_2476.jpeg" alt="Mr. Boy SpecialTea Logo" />
-        <p class="logo-location">SAN MATEO PLAZA</p>
-      </section>
-    </header>
 
-    <section class="light">
-      <p class="section-eyebrow">FIND YOUR FAVORITE</p>
-      <h2>Made for your kind of moment</h2>
-      <p class="section-intro">A menu of familiar favorites and fun new flavors, ready when you are.</p>
-      <div class="card-grid">
-        <div class="card small">
-          <span class="feature-number">01</span>
-          <h3>Milk Tea</h3>
-          <p>Creamy classics and playful, flavor-packed blends.</p>
+      <div class="lp-marquee-viewport">
+        <div class="lp-marquee-track" id="marquee-track"><!-- rendered by app.js --></div>
+      </div>
+    </section>
+
+    <!-- ── 1. HERO BANNER ───────────────────────────────────────── -->
+    <section class="lp-hero">
+      <div class="lp-hero-bgs" id="hero-bgs" aria-hidden="true"><!-- rendered by app.js --></div>
+      <div class="lp-hero-shade" aria-hidden="true"></div>
+
+      <div class="lp-hero-inner">
+        <div class="lp-hero-copy">
+          <span class="lp-pill-badge">
+            <span class="lp-ping" aria-hidden="true"></span>
+            ✨ MONTALBAN&rsquo;S FAVORITE SPECIALTEA SPOT
+          </span>
+          <h1>
+            Taste the
+            <span class="lp-accent">SpecialTea</span>
+            in Every Sip.
+          </h1>
+          <p>
+            Handcrafted Milktea, artisan Iced Coffee, refreshing Fruit Teas, and hot
+            snacks at student-friendly prices. Starting at only
+            <span class="lp-price-pill">₱29</span>!
+          </p>
         </div>
-        <div class="card small">
-          <span class="feature-number">02</span>
-          <h3>Fruit Tea</h3>
-          <p>Bright, refreshing flavors for a lighter sip.</p>
-        </div>
-        <div class="card small">
-          <span class="feature-number">03</span>
-          <h3>Coffee &amp; Frappe</h3>
-          <p>Cool pick-me-ups and cozy coffee favorites.</p>
-        </div>
-        <div class="card small">
-          <span class="feature-number">04</span>
-          <h3>Something to Snack On</h3>
-          <p>Round out your drink with a little something extra.</p>
+
+        <div class="lp-featured">
+          <span class="lp-featured-glow" aria-hidden="true"></span>
+          <div class="lp-featured-card">
+            <div class="lp-featured-head">
+              <span class="lp-featured-label">
+                <span class="lp-ping" aria-hidden="true"></span>
+                Featured Best Seller (<span id="featured-index">1</span>/<span id="featured-total">8</span>)
+              </span>
+              <span class="lp-featured-arrows">
+                <button type="button" id="featured-prev" aria-label="Previous slide">‹</button>
+                <button type="button" id="featured-next" aria-label="Next slide">›</button>
+              </span>
+            </div>
+
+            <div class="lp-featured-stage" id="featured-stage"><!-- rendered by app.js --></div>
+
+            <div class="lp-featured-dots" id="featured-dots" role="tablist" aria-label="Featured slides"><!-- rendered by app.js --></div>
+          </div>
         </div>
       </div>
     </section>
 
-    <section class="cta">
-      <div>
-        <p class="cta-eyebrow">YOUR NEXT FAVORITE IS WAITING</p>
-        <h2>Take a look at the menu.</h2>
-        <p>Choose a drink, pick your size, and place your order.</p>
+    <!-- ── 2. QUICK CATEGORY DISCOVERY TILES ───────────────────── -->
+    <section class="lp-categories">
+      <div class="lp-cat-head">
+        <span class="lp-cat-badge">Browse By Category</span>
+        <h2>What Are You Craving Today?</h2>
+        <p>Click any category to jump directly to its complete menu items.</p>
       </div>
-      <button type="button" class="cta-button" onclick="showSection('menu')">Browse the menu</button>
+      <div class="lp-cat-grid" id="category-grid"><!-- rendered by app.js --></div>
     </section>
   </div>
 
   <!-- ===== MENU SECTION ===== -->
   <section id="menu" class="section">
-    <h2>Menu &ndash; Order Now!</h2>
-
-    <div class="categories">
-      <button onclick="document.getElementById('milktea-sec').scrollIntoView({behavior: 'smooth'})">MILKTEA 🧋</button>
-      <button onclick="document.getElementById('coffee-sec').scrollIntoView({behavior: 'smooth'})">ICED COFFEE</button>
-      <button onclick="document.getElementById('fruit-sec').scrollIntoView({behavior: 'smooth'})">FRUIT TEA 🍹</button>
-      <button onclick="document.getElementById('frappe-sec').scrollIntoView({behavior: 'smooth'})">FRAPPE 🧋</button>
-      <button onclick="document.getElementById('hot-sec').scrollIntoView({behavior: 'smooth'})">HOT CUPS ☕</button>
-      <button onclick="document.getElementById('snack-sec').scrollIntoView({behavior: 'smooth'})">SNACKS</button>
+    <div class="lp-panel">
+      <div class="lp-panel-head">
+        <span class="lp-panel-icon">🧋</span>
+        <div class="lp-panel-titles">
+          <h2>Menu &ndash; Order Now!</h2>
+          <p>Tap a category to jump to it, then pick a size to add</p>
+        </div>
+      </div>
+      <div class="lp-panel-body">
+        <div class="categories">
+          <button type="button" onclick="document.getElementById('milktea-sec').scrollIntoView({behavior: 'smooth'})">MILKTEA 🧋</button>
+          <button type="button" onclick="document.getElementById('coffee-sec').scrollIntoView({behavior: 'smooth'})">ICED COFFEE</button>
+          <button type="button" onclick="document.getElementById('fruit-sec').scrollIntoView({behavior: 'smooth'})">FRUIT TEA 🍹</button>
+          <button type="button" onclick="document.getElementById('frappe-sec').scrollIntoView({behavior: 'smooth'})">FRAPPE 🧋</button>
+          <button type="button" onclick="document.getElementById('hot-sec').scrollIntoView({behavior: 'smooth'})">HOT CUPS ☕</button>
+          <button type="button" onclick="document.getElementById('snack-sec').scrollIntoView({behavior: 'smooth'})">SNACKS</button>
+        </div>
+      </div>
     </div>
 
     <!-- MILKTEA -->
@@ -176,55 +242,132 @@
 
   <!-- ===== CART / ORDER SECTION ===== -->
   <section id="cart" class="section">
-    <h2>Your Cart 🛒</h2>
-    <label for="customer-name"><strong>Customer Name:</strong></label>
-    <input type="text" id="customer-name" placeholder="Enter your name">
-    <ul id="cart-items"></ul>
-    <p><strong>Total:</strong> ₱<span id="cart-total">0</span></p>
+    <div class="lp-panel">
+      <div class="lp-panel-head">
+        <span class="lp-panel-icon">🛒</span>
+        <div class="lp-panel-titles">
+          <h2>Your Order Cart</h2>
+          <p>Review items before checkout</p>
+        </div>
+        <button type="button" class="lp-btn lp-btn-danger" onclick="clearCart()">🗑 Cancel</button>
+      </div>
 
-    <h3>Add-Ons (Optional)</h3>
-    <button id="pearl-btn" onclick="addAddonToLastItem('Pearl', 9)" disabled>Add Pearl ₱9</button>
+      <div class="lp-panel-body">
+        <!-- Customer identity -->
+        <div class="lp-sub">
+          <div class="lp-sub-head">
+            <span class="lp-sub-label">👤 Order Placed By:</span>
+            <span class="lp-chip lp-chip-lock">🔒 Login Required</span>
+          </div>
+          <label class="lp-field-label" for="customer-name">Customer Name</label>
+          <input type="text" id="customer-name" class="lp-input" placeholder="Enter your name">
+        </div>
 
-    <button onclick="showSection('menu')">➕ Add More Items</button>
-    <button id="generate-btn" onclick="generateReceipt()" disabled>Generate Receipt</button>
-    <button onclick="clearCart()">Cancel Order</button>
+        <!-- Cart list (rendered by app.js) + empty state -->
+        <ul id="cart-items" class="lp-cart-list"></ul>
+        <div class="lp-empty" id="cart-empty">
+          <span class="lp-empty-icon">🛍️</span>
+          <h3>Your cart is currently empty</h3>
+          <p>Explore our menu and add your favorite drinks!</p>
+          <button type="button" class="lp-btn lp-btn-brand" onclick="showSection('menu')">➕ Browse Menu</button>
+        </div>
 
-    <div id="receipt" style="margin-top:20px; border:1px solid #ccc; padding:10px; display:none;">
-      <h3>Receipt 🧾</h3>
-      <p><strong>Customer:</strong> <span id="receipt-name"></span></p>
-      <ul id="receipt-items"></ul>
-      <p><strong>Total:</strong> ₱<span id="receipt-total"></span></p>
-      <hr>
-      <p style="font-style: italic; text-align:center;">"Mr. Boy SpecialTea"</p>
-      <h4 style="text-align:center; color:green;">✅ Thank you for your order! We appreciate your support.</h4>
+        <div class="lp-total-row">
+          <span>Total</span>
+          <strong>₱<span id="cart-total">0</span></strong>
+        </div>
+
+        <div class="lp-sub">
+          <h3>Add-Ons (Optional)</h3>
+          <div class="lp-btn-row">
+            <button type="button" id="pearl-btn" class="lp-btn lp-btn-outline" onclick="addAddonToLastItem('Pearl', 9)" disabled>Add Pearl ₱9</button>
+            <button type="button" class="lp-btn lp-btn-outline" onclick="showSection('menu')">➕ Add More Items</button>
+            <button type="button" id="generate-btn" class="lp-btn lp-btn-brand" onclick="generateReceipt()" disabled>🧾 Generate Receipt</button>
+            <button type="button" class="lp-btn lp-btn-ghost" onclick="clearCart()">Cancel Order</button>
+          </div>
+        </div>
+
+        <div id="receipt" class="lp-receipt" style="display:none;">
+          <h3>Receipt 🧾</h3>
+          <p><strong>Customer:</strong> <span id="receipt-name"></span></p>
+          <ul id="receipt-items"></ul>
+          <p><strong>Total:</strong> ₱<span id="receipt-total"></span></p>
+          <hr>
+          <p class="lp-receipt-brand">"Mr. Boy SpecialTea"</p>
+          <p class="lp-receipt-thanks">✅ Thank you for your order! We appreciate your support.</p>
+        </div>
+      </div>
     </div>
   </section>
 
   <!-- ===== ABOUT SECTION ===== -->
   <section id="about" class="section">
-    <h2>About Us</h2>
-    <p><strong>Our Goal:</strong> To provide high-quality coffee while delivering fast, efficient, and satisfying service.</p>
-    <h3>Follow Us</h3>
-    <ul>
-      <li>Facebook: <a href="https://www.facebook.com/mrboyspecialteadelacostav" target="_blank">www.facebook.com/mrboyspecialteadelacostav</a></li>
-      <li>Instagram: <a href="https://instagram.com/mrboyspecialtea" target="_blank">@mrboyspecialtea</a></li>
-      <li>Email: <a href="mailto:mrboyspecialteadelacosta@gmail.com">mrboyspecialteadelacosta@gmail.com</a></li>
-    </ul>
+    <div class="lp-panel">
+      <div class="lp-panel-head">
+        <span class="lp-panel-icon">🍵</span>
+        <div class="lp-panel-titles">
+          <h2>About Us</h2>
+          <p>Our story &amp; where to find us online</p>
+        </div>
+      </div>
+      <div class="lp-panel-body">
+        <div class="lp-sub">
+          <h3>Our Goal</h3>
+          <p class="lp-text">To provide high-quality coffee while delivering fast, efficient, and satisfying service.</p>
+        </div>
+        <div class="lp-sub">
+          <h3>Follow Us</h3>
+          <ul class="lp-link-list">
+            <li><span>Facebook</span><a href="https://www.facebook.com/mrboyspecialteadelacostav" target="_blank" rel="noopener">www.facebook.com/mrboyspecialteadelacostav</a></li>
+            <li><span>Instagram</span><a href="https://instagram.com/mrboyspecialtea" target="_blank" rel="noopener">@mrboyspecialtea</a></li>
+            <li><span>Email</span><a href="mailto:mrboyspecialteadelacosta@gmail.com">mrboyspecialteadelacosta@gmail.com</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- ===== CONTACT SECTION ===== -->
   <section id="contact" class="section">
-    <h2>Contact Us</h2>
-    <p><strong>Address:</strong> 7 Hilario, STA. ANA, San Mateo, 1850 Rizal</p>
-    <p><strong>Phone:</strong> 0917 888 4737</p>
-    <p><strong>Email:</strong> <a href="mailto:mrboyspecialteadelacosta@gmail.com">mrboyspecialteadelacosta@gmail.com</a></p>
-    <form action="api/save_contact.php" method="POST" class="contact-form">
-      <input type="text" name="name" placeholder="Your name" class="form-input" required>
-      <input type="email" name="email" placeholder="Your email" class="form-input" required>
-      <input type="text" name="contact" placeholder="Your contact" class="form-input" required>
-      <textarea name="message" placeholder="Your message" class="form-input" required></textarea>
-      <button type="submit" class="submit-button">Submit</button>
-    </form>
+    <div class="lp-panel">
+      <div class="lp-panel-head">
+        <span class="lp-panel-icon">📍</span>
+        <div class="lp-panel-titles">
+          <h2>Contact Us</h2>
+          <p>Send us a message and we&rsquo;ll get back to you</p>
+        </div>
+      </div>
+
+      <div class="lp-panel-body">
+        <div class="lp-info-grid">
+          <div class="lp-info">
+            <span class="lp-info-icon">🏠</span>
+            <div><span class="lp-info-label">Address</span><p>7 Hilario, STA. ANA, San Mateo, 1850 Rizal</p></div>
+          </div>
+          <div class="lp-info">
+            <span class="lp-info-icon">📞</span>
+            <div><span class="lp-info-label">Phone</span><p><a href="tel:+639178884737">0917 888 4737</a></p></div>
+          </div>
+          <div class="lp-info">
+            <span class="lp-info-icon">✉️</span>
+            <div><span class="lp-info-label">Email</span><p><a href="mailto:mrboyspecialteadelacosta@gmail.com">mrboyspecialteadelacosta@gmail.com</a></p></div>
+          </div>
+        </div>
+
+        <div class="lp-sub">
+          <h3>Message Us</h3>
+          <form action="api/save_contact.php" method="POST" class="contact-form">
+            <div class="lp-form-row">
+              <input type="text" name="name" placeholder="Your name" class="form-input" required>
+              <input type="email" name="email" placeholder="Your email" class="form-input" required>
+            </div>
+            <input type="text" name="contact" placeholder="Your contact" class="form-input" required>
+            <textarea name="message" placeholder="Your message" class="form-input" required></textarea>
+            <button type="submit" class="submit-button">📨 Submit</button>
+          </form>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- ===== ADMIN DASHBOARD ===== -->
