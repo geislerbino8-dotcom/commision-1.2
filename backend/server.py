@@ -1,11 +1,11 @@
 """
 Mr. Boy SpecialTea — Flask Backend Server
 
-Replaces the PHP backend with Python + Flask + SQLite.
+Provides the application API with Python + Flask + MySQL/MariaDB.
 Provides the same API endpoints so the frontend JS works unchanged.
 
 Usage:
-    python server.py
+    python backend/server.py
 
 Then open: http://localhost:5000
 """
@@ -13,6 +13,7 @@ Then open: http://localhost:5000
 import os
 import sqlite3
 from datetime import datetime
+from pathlib import Path
 from flask import Flask, request, jsonify, send_from_directory, send_file, session
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -113,7 +114,7 @@ BACKEND_DIR  = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
 # Static assets (frontend/dist, public/, index.html) live at the repo root.
 BASE_DIR     = PROJECT_ROOT
-# The SQLite fallback DB lives beside the backend code.
+# Legacy SQLite file used once to migrate existing records into MySQL.
 DB_PATH      = os.path.join(BACKEND_DIR, 'database', 'mr_boy.db')
 
 # Auto-load .env configuration if present
@@ -142,7 +143,7 @@ MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD', '')
 MYSQL_DATABASE = os.environ.get('MYSQL_DATABASE', 'mr_boy_db').strip()
 
 
-# ── MySQL & SQLite Database Adapters ─────────────────────────
+# ── MySQL Database Adapter ───────────────────────────────────
 # MySQLConnection is a thin sqlite3-compatible wrapper over PyMySQL. Keeping the
 # sqlite3 surface (execute/executescript/commit/close + '?' placeholders + rows
 # that support both row['col'] and row[0]) means none of the ~36 query call sites
@@ -284,6 +285,9 @@ class MySQLConnection:
     def commit(self):
         self._conn.commit()
 
+    def rollback(self):
+        self._conn.rollback()
+
     def close(self):
         try:
             self._conn.close()
@@ -291,34 +295,21 @@ class MySQLConnection:
             pass
 
 
-# Tracks whether MySQL is usable. Once a connection fails we remember it and skip
-# MySQL for the rest of the process, so every request doesn't pay the failure cost
-# (and 500). Set back to True only by restarting the server (e.g. after starting
-# XAMPP's MySQL service).
-_MYSQL_HEALTHY = True
-
-
 def get_db():
-    """Return a MySQL connection when configured and reachable, else local SQLite."""
-    global _MYSQL_HEALTHY
-    if MYSQL_DATABASE and _MYSQL_HEALTHY:
-        try:
-            return MySQLConnection(
-                host=MYSQL_HOST, port=MYSQL_PORT, user=MYSQL_USER,
-                password=MYSQL_PASSWORD, database=MYSQL_DATABASE,
-            )
-        except Exception as e:
-            print(f"[WARN] MySQL unavailable ({e}); falling back to SQLite at {DB_PATH}")
-            _MYSQL_HEALTHY = False
-
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def _using_mysql():
-    """True when the primary connection is MySQL (not the SQLite fallback)."""
-    return bool(MYSQL_DATABASE) and _MYSQL_HEALTHY
+    """Return a MySQL connection; fail instead of silently using another database."""
+    if not MYSQL_DATABASE:
+        raise RuntimeError('MYSQL_DATABASE must name a database created in MySQL/phpMyAdmin.')
+    try:
+        return MySQLConnection(
+            host=MYSQL_HOST, port=MYSQL_PORT, user=MYSQL_USER,
+            password=MYSQL_PASSWORD, database=MYSQL_DATABASE,
+        )
+    except pymysql.MySQLError as error:
+        raise RuntimeError(
+            f"Cannot connect to MySQL database '{MYSQL_DATABASE}' at "
+            f'{MYSQL_HOST}:{MYSQL_PORT}. Start MySQL and check backend/.env '
+            'and that the database exists in phpMyAdmin.'
+        ) from error
 
 
 def _mysql_columns(conn, table):
@@ -328,6 +319,77 @@ def _mysql_columns(conn, table):
         "WHERE table_schema = DATABASE() AND table_name = ?", (table,)
     ).fetchall()
     return [r['name'] for r in rows]
+
+
+def _migrate_legacy_sqlite(conn):
+    """Copy the existing local SQLite records into MySQL once, without overwriting MySQL data."""
+    if not os.path.isfile(DB_PATH):
+        return
+
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS app_migrations (
+            migration_key VARCHAR(100) PRIMARY KEY,
+            applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ''')
+    migration_key = 'sqlite_to_mysql_v1'
+    if conn.execute(
+        'SELECT migration_key FROM app_migrations WHERE migration_key = ?',
+        (migration_key,),
+    ).fetchone():
+        return
+
+    source = sqlite3.connect(f'{Path(DB_PATH).as_uri()}?mode=ro', uri=True)
+    source.row_factory = sqlite3.Row
+    migrated_counts = {}
+    skipped_counts = {}
+
+    try:
+        for table in ('users', 'orders', 'contact_messages', 'product_availability'):
+            source_columns = [
+                column['name']
+                for column in source.execute(f'PRAGMA table_info(`{table}`)').fetchall()
+            ]
+            target_columns = _mysql_columns(conn, table)
+            columns = [column for column in source_columns if column in target_columns]
+            if not columns:
+                continue
+
+            column_list = ', '.join(f'`{column}`' for column in columns)
+            placeholders = ', '.join('?' for _ in columns)
+            insert_sql = (
+                f'INSERT IGNORE INTO `{table}` ({column_list}) '
+                f'VALUES ({placeholders})'
+            )
+            rows = source.execute(
+                f'SELECT {column_list} FROM `{table}`'
+            ).fetchall()
+            inserted = 0
+            for row in rows:
+                result = conn.execute(insert_sql, tuple(row[column] for column in columns))
+                inserted += max(result.rowcount, 0)
+            migrated_counts[table] = inserted
+            skipped_counts[table] = len(rows) - inserted
+
+        conn.execute(
+            'INSERT INTO app_migrations (migration_key) VALUES (?)',
+            (migration_key,),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        source.close()
+
+    total = sum(migrated_counts.values())
+    print(f'[OK] Migrated {total} legacy SQLite records into MySQL: {migrated_counts}')
+    skipped_total = sum(skipped_counts.values())
+    if skipped_total:
+        print(
+            '[WARN] Some SQLite records were not inserted because MySQL ignored '
+            f'duplicate or invalid rows: {skipped_counts}'
+        )
 
 
 def _iso(value):
@@ -349,136 +411,72 @@ def _iso(value):
 
 def init_db():
     """Create tables if they don't exist and seed default admin."""
-    if _using_mysql():
-        mysql_ddl = '''
-            CREATE TABLE IF NOT EXISTS users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                username VARCHAR(255) UNIQUE NOT NULL,
-                email VARCHAR(255) UNIQUE NOT NULL,
-                password TEXT NOT NULL,
-                fullname VARCHAR(255) NOT NULL,
-                role VARCHAR(50) DEFAULT 'customer',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                last_login DATETIME NULL DEFAULT NULL
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    mysql_ddl = '''
+        CREATE TABLE IF NOT EXISTS users (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(255) UNIQUE NOT NULL,
+            email VARCHAR(255) UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            fullname VARCHAR(255) NOT NULL,
+            role VARCHAR(50) DEFAULT 'customer',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_login DATETIME NULL DEFAULT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-            CREATE TABLE IF NOT EXISTS orders (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id INT NULL,
-                customer_name VARCHAR(255) NOT NULL,
-                customer_username VARCHAR(255) NULL,
-                customer_email VARCHAR(255) NULL,
-                order_details TEXT NOT NULL,
-                total_price DOUBLE NOT NULL,
-                status VARCHAR(50) DEFAULT 'pending',
-                order_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        CREATE TABLE IF NOT EXISTS orders (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NULL,
+            customer_name VARCHAR(255) NOT NULL,
+            customer_username VARCHAR(255) NULL,
+            customer_email VARCHAR(255) NULL,
+            order_details TEXT NOT NULL,
+            total_price DOUBLE NOT NULL,
+            status VARCHAR(50) DEFAULT 'pending',
+            order_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-            CREATE TABLE IF NOT EXISTS contact_messages (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                email VARCHAR(255) NOT NULL,
-                contact VARCHAR(255) NOT NULL,
-                message TEXT NOT NULL,
-                is_read INT DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        CREATE TABLE IF NOT EXISTS contact_messages (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            email VARCHAR(255) NOT NULL,
+            contact VARCHAR(255) NOT NULL,
+            message TEXT NOT NULL,
+            is_read INT DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-            CREATE TABLE IF NOT EXISTS product_availability (
-                product_id VARCHAR(255) PRIMARY KEY,
-                is_available INT DEFAULT 1,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        '''
-        conn = get_db()
-        conn.executescript(mysql_ddl)
+        CREATE TABLE IF NOT EXISTS product_availability (
+            product_id VARCHAR(255) PRIMARY KEY,
+            is_available INT DEFAULT 1,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    '''
+    conn = get_db()
+    conn.executescript(mysql_ddl)
 
-        # Migration for existing orders table
-        order_cols = _mysql_columns(conn, 'orders')
-        if 'user_id' not in order_cols:
-            conn.execute("ALTER TABLE orders ADD COLUMN user_id INT NULL")
-        if 'customer_username' not in order_cols:
-            conn.execute("ALTER TABLE orders ADD COLUMN customer_username VARCHAR(255) NULL")
-        if 'customer_email' not in order_cols:
-            conn.execute("ALTER TABLE orders ADD COLUMN customer_email VARCHAR(255) NULL")
-        if 'status' not in order_cols:
-            conn.execute("ALTER TABLE orders ADD COLUMN status VARCHAR(50) DEFAULT 'pending'")
+    # Migration for existing orders table
+    order_cols = _mysql_columns(conn, 'orders')
+    if 'user_id' not in order_cols:
+        conn.execute("ALTER TABLE orders ADD COLUMN user_id INT NULL")
+    if 'customer_username' not in order_cols:
+        conn.execute("ALTER TABLE orders ADD COLUMN customer_username VARCHAR(255) NULL")
+    if 'customer_email' not in order_cols:
+        conn.execute("ALTER TABLE orders ADD COLUMN customer_email VARCHAR(255) NULL")
+    if 'status' not in order_cols:
+        conn.execute("ALTER TABLE orders ADD COLUMN status VARCHAR(50) DEFAULT 'pending'")
 
-        # Migration for contact_messages table (is_read column)
-        contact_cols = _mysql_columns(conn, 'contact_messages')
-        if 'is_read' not in contact_cols:
-            conn.execute("ALTER TABLE contact_messages ADD COLUMN is_read INT DEFAULT 0")
+    # Migration for contact_messages table (is_read column)
+    contact_cols = _mysql_columns(conn, 'contact_messages')
+    if 'is_read' not in contact_cols:
+        conn.execute("ALTER TABLE contact_messages ADD COLUMN is_read INT DEFAULT 0")
 
-        # Migration for users table (last_login column — powers the admin Users tab)
-        user_cols = _mysql_columns(conn, 'users')
-        if 'last_login' not in user_cols:
-            conn.execute("ALTER TABLE users ADD COLUMN last_login DATETIME NULL DEFAULT NULL")
-    else:
-        os.makedirs(os.path.join(BACKEND_DIR, 'database'), exist_ok=True)
-        conn = get_db()
-        conn.executescript('''
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                email TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL,
-                fullname TEXT NOT NULL,
-                role TEXT DEFAULT 'customer',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_login TIMESTAMP NULL DEFAULT NULL
-            );
+    # Migration for users table (last_login column — powers the admin Users tab)
+    user_cols = _mysql_columns(conn, 'users')
+    if 'last_login' not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN last_login DATETIME NULL DEFAULT NULL")
 
-            CREATE TABLE IF NOT EXISTS orders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                customer_name TEXT NOT NULL,
-                customer_username TEXT,
-                customer_email TEXT,
-                order_details TEXT NOT NULL,
-                total_price REAL NOT NULL,
-                status TEXT DEFAULT 'pending',
-                order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS contact_messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                email TEXT NOT NULL,
-                contact TEXT NOT NULL,
-                message TEXT NOT NULL,
-                is_read INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-
-            CREATE TABLE IF NOT EXISTS product_availability (
-                product_id TEXT PRIMARY KEY,
-                is_available INTEGER DEFAULT 1,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        ''')
-
-        # Migration for existing orders table
-        order_cols = [col[1] for col in conn.execute("PRAGMA table_info(orders)").fetchall()]
-        if 'user_id' not in order_cols:
-            conn.execute("ALTER TABLE orders ADD COLUMN user_id INTEGER")
-        if 'customer_username' not in order_cols:
-            conn.execute("ALTER TABLE orders ADD COLUMN customer_username TEXT")
-        if 'customer_email' not in order_cols:
-            conn.execute("ALTER TABLE orders ADD COLUMN customer_email TEXT")
-        if 'status' not in order_cols:
-            conn.execute("ALTER TABLE orders ADD COLUMN status TEXT DEFAULT 'pending'")
-
-        # Migration for contact_messages table (is_read column)
-        contact_cols = [col[1] for col in conn.execute("PRAGMA table_info(contact_messages)").fetchall()]
-        if 'is_read' not in contact_cols:
-            conn.execute("ALTER TABLE contact_messages ADD COLUMN is_read INTEGER DEFAULT 0")
-
-        # Migration for users table (last_login column — powers the admin Users tab)
-        user_cols = [col[1] for col in conn.execute("PRAGMA table_info(users)").fetchall()]
-        if 'last_login' not in user_cols:
-            conn.execute("ALTER TABLE users ADD COLUMN last_login TIMESTAMP NULL DEFAULT NULL")
+    _migrate_legacy_sqlite(conn)
 
     # Seed default admin if missing
     admin = conn.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()
@@ -493,10 +491,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-    if _using_mysql():
-        print(f"[OK] Connected to MySQL: {MYSQL_USER}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}")
-    else:
-        print(f"[OK] Database ready at local SQLite: {DB_PATH}")
+    print(f"[OK] Connected to MySQL: {MYSQL_USER}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}")
 
 
 # ── Static File Serving ───────────────────────────────────────
@@ -561,13 +556,12 @@ def serve_images(filename):
 @app.route('/api/health', methods=['GET'])
 @app.route('/health', methods=['GET'])
 def health():
-    using_mysql = _using_mysql()
     return jsonify({
         'status': 'ok',
-        'database': 'mysql' if using_mysql else 'sqlite',
-        'mysql_host': f"{MYSQL_HOST}:{MYSQL_PORT}" if using_mysql else None,
-        'mysql_database': MYSQL_DATABASE if using_mysql else None,
-        'cloud_connected': using_mysql,
+        'database': 'mysql',
+        'mysql_host': f"{MYSQL_HOST}:{MYSQL_PORT}",
+        'mysql_database': MYSQL_DATABASE,
+        'cloud_connected': True,
         'timestamp': datetime.utcnow().isoformat()
     })
 
@@ -1427,10 +1421,7 @@ def sales_analytics():
 
 # ── Main ──────────────────────────────────────────────────────
 
-try:
-    init_db()
-except Exception as e:
-    print(f"[WARN] Database initialization notice: {e}")
+init_db()
 
 if __name__ == '__main__':
     import socket

@@ -7,7 +7,7 @@ A full-stack ordering and store management web application built for Mr. Boy Spe
 ## Overview
 
 - **Frontend**: React 19, TypeScript, Vite, Tailwind CSS, Radix UI primitives, Lucide icons.
-- **Backend (Python)**: Flask with SQLite or Turso Cloud Database (`server.py`), session-based authentication, REST API.
+- **Backend (Python)**: Flask with MySQL/MariaDB, session-based authentication, and a REST API.
 - **Backend (PHP / Optional)**: PHP MVC with MySQL support for XAMPP / Apache environments.
 
 ---
@@ -35,14 +35,14 @@ A full-stack ordering and store management web application built for Mr. Boy Spe
 
 ```
 comission/
-├── server.py              # Flask backend server (SQLite database & REST API)
+├── backend/server.py      # Flask backend server (MySQL/MariaDB & REST API)
 ├── vercel.json            # Vercel deployment configuration
-├── database/              # SQLite database storage (auto-created)
-├── api/                   # PHP REST API endpoints
-├── config/                # PHP database connection settings
-├── controllers/           # PHP controllers
-├── models/                # PHP models
-├── views/                 # PHP views
+├── backend/database/      # Legacy SQLite database (kept as a migration source)
+├── backend/api/           # PHP REST API endpoints
+├── backend/config/        # PHP database connection settings
+├── backend/controllers/   # PHP controllers
+├── backend/models/        # PHP models
+├── backend/views/         # PHP views
 ├── public/
 │   └── images/            # Product images and branding assets
 └── frontend/              # React + TypeScript single-page application
@@ -67,14 +67,28 @@ comission/
 
 ---
 
-### Option 1: Python + Flask Backend (Recommended)
+### Option 1: Python + MySQL Backend (Recommended)
 
-1. **Install Python dependencies**
+1. **Start MySQL/MariaDB** from the XAMPP Control Panel.
+
+2. **Create the database** in phpMyAdmin at `http://localhost/phpmyadmin`. Create a database named `mr_boy_db` using the `utf8mb4` character set.
+
+3. **Configure MySQL credentials** if they differ from the XAMPP defaults. Create `backend/.env` with:
    ```bash
-   pip install flask
+   MYSQL_HOST=127.0.0.1
+   MYSQL_PORT=3306
+   MYSQL_USER=root
+   MYSQL_PASSWORD=
+   MYSQL_DATABASE=mr_boy_db
+   ```
+   Keep this file local and do not commit real credentials.
+
+4. **Install Python dependencies**
+   ```bash
+   pip install -r backend/requirements.txt
    ```
 
-2. **Build the frontend (or run dev mode)**
+5. **Build the frontend (or run dev mode)**
    ```bash
    cd frontend
    npm install
@@ -82,11 +96,11 @@ comission/
    cd ..
    ```
 
-3. **Start the server**
+6. **Start the server**
    ```bash
-   python server.py
+   python backend/server.py
    ```
-   The application will be accessible at `http://localhost:5000`. The SQLite database and tables will initialize automatically on first start.
+   The application will be accessible at `http://localhost:5000`. On first start, the server creates the MySQL tables and imports existing records from `backend/database/mr_boy.db` once. Existing MySQL records are never overwritten; conflicting SQLite rows are reported, and the SQLite file is retained as a backup. MySQL/phpMyAdmin is then the app's only database.
 
 ---
 
@@ -96,7 +110,7 @@ For active frontend development with Hot Module Replacement:
 
 1. **Start the Flask backend in one terminal:**
    ```bash
-   python server.py
+   python backend/server.py
    ```
 
 2. **Start the Vite dev server in a second terminal:**
@@ -113,7 +127,7 @@ For active frontend development with Hot Module Replacement:
 
 1. Place the project folder inside your web root (e.g., `C:\xampp\htdocs\comission\`).
 2. Create a MySQL database named `mr_boy_db` and import the schema.
-3. Update database credentials in `config/database.php` if required.
+3. Update database credentials in `backend/config/database.php` if required.
 4. Open `http://localhost/comission/` in your browser.
 
 ---
