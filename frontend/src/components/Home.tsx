@@ -682,7 +682,7 @@ export const Home: React.FC<HomeProps> = ({
 
       {/* ── 4. WHY CHOOSE MR. BOY (THE SPECIALTEA DIFFERENCE) ───────── */}
       <section className="container mx-auto px-3 sm:px-6">
-        <div className="rounded-3xl bg-gradient-to-b from-white to-brand-cream/80 p-5 sm:p-12 border border-brand-brown/10 shadow-lg space-y-6 sm:space-y-10">
+        <div className="rounded-3xl bg-gradient-to-b from-white to-brand-cream/80 dark:from-[#35281b] dark:to-[#2f2318] p-5 sm:p-12 border border-brand-brown/10 shadow-lg space-y-6 sm:space-y-10">
           <div className="text-center space-y-2 max-w-xl mx-auto">
             <Badge variant="brand" className="text-xs font-bold uppercase">
               The Mr. Boy Difference
@@ -911,4 +911,3 @@ export const Home: React.FC<HomeProps> = ({
     </div>
   );
 };
-

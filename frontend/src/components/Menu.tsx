@@ -256,7 +256,27 @@ export const Menu: React.FC<MenuProps> = ({
 
         {/* Size Buttons / Actions */}
         <CardFooter className="p-4 pt-0 flex flex-wrap gap-2 translate-z-20">
-          {isAvailable ? (
+          {isAdmin ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onToggleAvailability?.(item.id, !isAvailable)}
+              className={`w-full text-xs font-bold ${
+                isAvailable
+                  ? 'border-green-600 text-green-700 hover:bg-green-50'
+                  : 'border-red-600 text-red-700 hover:bg-red-50'
+              }`}
+              title={`Click to mark ${isAvailable ? 'sold out' : 'in stock'}`}
+            >
+              {isAvailable ? (
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-green-600" />
+              ) : (
+                <AlertCircle className="h-3.5 w-3.5 mr-1 text-red-600" />
+              )}
+              {isAvailable ? 'In Stock' : 'Sold Out'}
+            </Button>
+          ) : isAvailable ? (
             item.prices.map(p => (
               <Button
                 key={p.size}
@@ -270,28 +290,13 @@ export const Menu: React.FC<MenuProps> = ({
               </Button>
             ))
           ) : (
-            <div className="w-full">
-              {isAdmin ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onToggleAvailability?.(item.id, true)}
-                  className="w-full text-xs font-bold border-green-600 text-green-700 hover:bg-green-50"
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-green-600" />
-                  Admin: Mark Available
-                </Button>
-              ) : (
-                <Button
-                  disabled
-                  size="sm"
-                  className="w-full bg-slate-200 text-slate-500 text-xs font-bold cursor-not-allowed"
-                >
-                  Temporarily Sold Out
-                </Button>
-              )}
-            </div>
+            <Button
+              disabled
+              size="sm"
+              className="w-full bg-slate-200 text-slate-500 text-xs font-bold cursor-not-allowed"
+            >
+              Temporarily Sold Out
+            </Button>
           )}
         </CardFooter>
       </Card>
