@@ -77,20 +77,24 @@ export const Navbar: React.FC<NavbarProps> = ({
             Menu
           </Button>
 
-          <Button
-            variant={activeTab === 'cart' ? 'amber' : 'ghost'}
-            size="sm"
-            onClick={() => handleNavClick('cart')}
-            className={`relative ${activeTab === 'cart' ? '' : 'text-white hover:bg-white/10 hover:text-white'}`}
-          >
-            <ShoppingBag className="h-4 w-4 mr-1" />
-            Order
-            {cartCount > 0 && (
-              <span className="ml-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-brand-orange text-xs font-bold text-white shadow">
-                {cartCount}
-              </span>
-            )}
-          </Button>
+          {/* Admins manage the shop, they don't buy from it — so the Order
+              entry point is hidden entirely for admin accounts. */}
+          {currentUser?.role !== 'admin' && (
+            <Button
+              variant={activeTab === 'cart' ? 'amber' : 'ghost'}
+              size="sm"
+              onClick={() => handleNavClick('cart')}
+              className={`relative ${activeTab === 'cart' ? '' : 'text-white hover:bg-white/10 hover:text-white'}`}
+            >
+              <ShoppingBag className="h-4 w-4 mr-1" />
+              Order
+              {cartCount > 0 && (
+                <span className="ml-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-brand-orange text-xs font-bold text-white shadow">
+                  {cartCount}
+                </span>
+              )}
+            </Button>
+          )}
 
           <Button
             variant={activeTab === 'contact' ? 'amber' : 'ghost'}
@@ -178,23 +182,25 @@ export const Navbar: React.FC<NavbarProps> = ({
             />
           )}
 
-          <button
-            type="button"
-            onClick={() => handleNavClick('cart')}
-            className={`relative flex h-8 w-8 items-center justify-center rounded-lg border transition-colors ${
-              activeTab === 'cart'
-                ? 'bg-brand-amber text-brand-brown border-brand-amber'
-                : 'bg-white/10 text-white border-white/15 hover:bg-white/20'
-            }`}
-            aria-label="Order Cart"
-          >
-            <ShoppingBag className="h-4 w-4" />
-            {cartCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-orange text-[10px] font-bold text-white px-1 shadow">
-                {cartCount}
-              </span>
-            )}
-          </button>
+          {currentUser?.role !== 'admin' && (
+            <button
+              type="button"
+              onClick={() => handleNavClick('cart')}
+              className={`relative flex h-8 w-8 items-center justify-center rounded-lg border transition-colors ${
+                activeTab === 'cart'
+                  ? 'bg-brand-amber text-brand-brown border-brand-amber'
+                  : 'bg-white/10 text-white border-white/15 hover:bg-white/20'
+              }`}
+              aria-label="Order Cart"
+            >
+              <ShoppingBag className="h-4 w-4" />
+              {cartCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-orange text-[10px] font-bold text-white px-1 shadow">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+          )}
 
           <button
             type="button"
@@ -238,25 +244,27 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>Menu</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => handleNavClick('cart')}
-              className={`flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition-all ${
-                activeTab === 'cart'
-                  ? 'bg-brand-amber text-brand-brown shadow'
-                  : 'bg-white/5 hover:bg-white/10 text-amber-100'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <ShoppingBag className="h-4 w-4" />
-                <span>Order Cart</span>
-              </div>
-              {cartCount > 0 && (
-                <span className="rounded-full bg-brand-orange px-1.5 py-0.2 text-[10px] font-black text-white shadow-xs">
-                  {cartCount}
-                </span>
-              )}
-            </button>
+            {currentUser?.role !== 'admin' && (
+              <button
+                type="button"
+                onClick={() => handleNavClick('cart')}
+                className={`flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'cart'
+                    ? 'bg-brand-amber text-brand-brown shadow'
+                    : 'bg-white/5 hover:bg-white/10 text-amber-100'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <ShoppingBag className="h-4 w-4" />
+                  <span>Order Cart</span>
+                </div>
+                {cartCount > 0 && (
+                  <span className="rounded-full bg-brand-orange px-1.5 py-0.2 text-[10px] font-black text-white shadow-xs">
+                    {cartCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             <button
               type="button"

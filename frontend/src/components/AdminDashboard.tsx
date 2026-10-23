@@ -32,7 +32,9 @@ import {
   Cookie,
   UtensilsCrossed,
   Sliders,
-  CheckCheck
+  CheckCheck,
+  Users as UsersIcon,
+  ShieldCheck
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from './ui/card';
 import { Button } from './ui/button';
@@ -43,6 +45,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import { Order, User, MenuItem, ContactMessage, SalesAnalyticsData } from '../types';
 import { MENU_ITEMS } from '../data/menu';
+
+/** One row of the admin "Users" tab: an account plus its order activity. */
+export interface AdminUser {
+  id: number;
+  username: string;
+  fullname: string;
+  email: string;
+  role: string;
+  is_admin: boolean;
+  created_at: string | null;
+  last_login: string | null;
+  has_signed_in: boolean;
+  order_count: number;
+  total_spent: number;
+}
 
 interface AdminDashboardProps {
   currentUser: User | null;
@@ -57,7 +74,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   productAvailability = {},
   onToggleAvailability,
 }) => {
-  const [activeTab, setActiveTab] = useState<'analytics' | 'orders' | 'inventory' | 'contacts'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'orders' | 'inventory' | 'contacts' | 'users'>('analytics');
 
   // Orders State
   const [orders, setOrders] = useState<Order[]>([]);
@@ -81,6 +98,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isLoadingContacts, setIsLoadingContacts] = useState<boolean>(false);
   const [contactSearch, setContactSearch] = useState<string>('');
   const [contactFilter, setContactFilter] = useState<'all' | 'unread' | 'read'>('all');
+
+  // Registered Accounts State (admin-only, read-only)
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(false);
+  const [userSearch, setUserSearch] = useState<string>('');
+  const [userFilter, setUserFilter] = useState<'all' | 'customer' | 'admin' | 'signed_in' | 'never'>('all');
+
+  // MySQL returns "YYYY-MM-DD HH:MM:SS"; normalise it for <input>-free display.
+  const formatStamp = (value?: string | null): string => {
+    if (!value) return '';
+    const parsed = new Date(String(value).replace(' ', 'T'));
+    if (Number.isNaN(parsed.getTime())) return String(value);
+    return parsed.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
   const [viewingContact, setViewingContact] = useState<ContactMessage | null>(null);
 
   // Sync prop availability with local state
@@ -136,12 +173,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  // Fetch registered accounts (admin only — the API enforces the role)
+  const fetchUsers = async () => {
+    setIsLoadingUsers(true);
+    try {
+      const res = await fetch('/api/fetch_users.php');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setUsers(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch users:', err);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
   // Fetch all on mount or when user is admin
   useEffect(() => {
     if (currentUser && currentUser.role === 'admin') {
       fetchOrders();
       fetchAnalytics();
       fetchContacts();
+      fetchUsers();
     }
   }, [currentUser]);
 
@@ -450,7 +504,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         onValueChange={(v) => setActiveTab(v as any)}
         className="w-full space-y-6"
       >
-        <TabsList className="grid grid-cols-2 md:grid-cols-4 bg-brand-cream/80 p-1.5 rounded-2xl border border-brand-brown/15 shadow-inner">
+        <TabsList className="grid grid-cols-2 md:grid-cols-5 bg-brand-cream/80 p-1.5 rounded-2xl border border-brand-brown/15 shadow-inner">
           <TabsTrigger 
             value="analytics" 
             className="gap-2 font-bold py-2.5 rounded-xl text-xs sm:text-sm data-[state=active]:bg-brand-coffee data-[state=active]:text-white data-[state=active]:shadow-md transition-all"
@@ -500,6 +554,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {contacts.length}
               </span>
             ) : null}
+          </TabsTrigger>
+
+          <TabsTrigger
+            value="users"
+            className="gap-2 font-bold py-2.5 rounded-xl text-xs sm:text-sm data-[state=active]:bg-brand-coffee data-[state=active]:text-white data-[state=active]:shadow-md transition-all relative"
+          >
+            <UsersIcon className="h-4 w-4" />
+            <span>Users</span>
+            {users.length > 0 && (
+              <span className="ml-1 rounded-full bg-brand-amber text-brand-brown px-1.5 py-0.2 text-[10px] font-black shadow-xs">
+                {users.length}
+              </span>
+            )}
           </TabsTrigger>
         </TabsList>
 
@@ -1434,6 +1501,188 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               })}
             </div>
           )}
+        </TabsContent>
+
+        {/* ═════════════════════════════════════════════════════════════ */}
+        {/* TAB 5: REGISTERED USERS / CUSTOMERS (read-only)               */}
+        {/* ═════════════════════════════════════════════════════════════ */}
+        <TabsContent value="users" className="space-y-6">
+          <Card className="border-brand-brown/10 shadow-xl rounded-3xl overflow-hidden bg-white">
+            <CardHeader className="bg-brand-coffee text-white p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/20">
+                    <UsersIcon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Registered Customers</CardTitle>
+                    <CardDescription className="text-amber-100/80">
+                      Who has an account, when they last signed in, and what they have ordered
+                    </CardDescription>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={fetchUsers}
+                  disabled={isLoadingUsers}
+                  className="text-white hover:bg-white/15 border border-white/20"
+                >
+                  {isLoadingUsers ? 'Loading…' : 'Refresh'}
+                </Button>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-4 sm:p-5 space-y-4">
+              {/* ── Summary ─────────────────────────────────────────── */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="rounded-2xl bg-brand-cream/60 border border-brand-brown/10 p-3">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-brand-brown/60">Accounts</div>
+                  <div className="text-2xl font-black text-brand-brown">{users.length}</div>
+                </div>
+                <div className="rounded-2xl bg-brand-cream/60 border border-brand-brown/10 p-3">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-brand-brown/60">Customers</div>
+                  <div className="text-2xl font-black text-brand-brown">
+                    {users.filter((u) => !u.is_admin).length}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-brand-cream/60 border border-brand-brown/10 p-3">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-brand-brown/60">Admins</div>
+                  <div className="text-2xl font-black text-brand-brown">
+                    {users.filter((u) => u.is_admin).length}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-brand-cream/60 border border-brand-brown/10 p-3">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-brand-brown/60">Signed in</div>
+                  <div className="text-2xl font-black text-brand-brown">
+                    {users.filter((u) => u.has_signed_in).length}
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Search + filter ─────────────────────────────────── */}
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Input
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder="Search name, username or email…"
+                  className="sm:max-w-xs"
+                />
+                <div className="flex flex-wrap gap-1.5">
+                  {([
+                    { key: 'all', label: 'All' },
+                    { key: 'customer', label: 'Customers' },
+                    { key: 'admin', label: 'Admins' },
+                    { key: 'signed_in', label: 'Signed in' },
+                    { key: 'never', label: 'Never signed in' },
+                  ] as const).map((f) => (
+                    <button
+                      key={f.key}
+                      type="button"
+                      onClick={() => setUserFilter(f.key)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
+                        userFilter === f.key
+                          ? 'bg-brand-coffee text-white shadow'
+                          : 'bg-brand-cream text-brand-brown border border-brand-brown/15 hover:bg-brand-amber/40'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Table ───────────────────────────────────────────── */}
+              {isLoadingUsers && users.length === 0 ? (
+                <div className="py-12 text-center text-sm text-brand-brown/60">Loading accounts…</div>
+              ) : users.length === 0 ? (
+                <div className="py-12 text-center text-sm text-brand-brown/60">No accounts registered yet.</div>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-brand-brown/10">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-brand-cream/60 hover:bg-brand-cream/60">
+                        <TableHead className="font-bold text-brand-brown">Customer</TableHead>
+                        <TableHead className="font-bold text-brand-brown">Email</TableHead>
+                        <TableHead className="font-bold text-brand-brown">Role</TableHead>
+                        <TableHead className="font-bold text-brand-brown">Registered</TableHead>
+                        <TableHead className="font-bold text-brand-brown">Last sign-in</TableHead>
+                        <TableHead className="text-right font-bold text-brand-brown">Orders</TableHead>
+                        <TableHead className="text-right font-bold text-brand-brown">Total spent</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {users
+                        .filter((u) => {
+                          if (userFilter === 'customer' && u.is_admin) return false;
+                          if (userFilter === 'admin' && !u.is_admin) return false;
+                          if (userFilter === 'signed_in' && !u.has_signed_in) return false;
+                          if (userFilter === 'never' && u.has_signed_in) return false;
+                          const q = userSearch.trim().toLowerCase();
+                          if (!q) return true;
+                          return (
+                            u.fullname.toLowerCase().includes(q) ||
+                            u.username.toLowerCase().includes(q) ||
+                            u.email.toLowerCase().includes(q)
+                          );
+                        })
+                        .map((u) => (
+                          <TableRow key={u.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-2.5">
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-amber/25 text-brand-coffee font-bold text-xs">
+                                  {u.fullname.slice(0, 1).toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-bold text-brand-brown truncate">{u.fullname}</div>
+                                  <div className="text-[11px] text-brand-brown/60 font-mono">@{u.username}</div>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm text-brand-brown/80">{u.email}</TableCell>
+                            <TableCell>
+                              {u.is_admin ? (
+                                <Badge variant="brand" className="gap-1 uppercase">
+                                  <ShieldCheck className="h-3 w-3" />
+                                  Admin
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-brand-brown border-brand-brown/25 uppercase">
+                                  Customer
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs text-brand-brown/70 whitespace-nowrap">
+                              {formatStamp(u.created_at) || '—'}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              {u.has_signed_in ? (
+                                <span className="text-xs text-brand-brown/70">{formatStamp(u.last_login)}</span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">
+                                  <Clock className="h-3 w-3" />
+                                  Never signed in
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-brand-brown">
+                              {u.order_count}
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-brand-orange">
+                              ₱{u.total_spent.toFixed(2)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              <p className="text-[11px] text-brand-brown/50">
+                Read-only view. Order activity excludes cancelled orders and matches the Sales Analytics figures.
+              </p>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 

@@ -330,6 +330,23 @@ def _mysql_columns(conn, table):
     return [r['name'] for r in rows]
 
 
+def _iso(value):
+    """Serialise a DB timestamp as 'YYYY-MM-DD HH:MM:SS' (no timezone).
+
+    Flask's default JSON encoder turns datetime objects into RFC-1123 GMT
+    strings ("Thu, 22 Oct 2026 13:00:35 GMT"). Because MySQL stores wall-clock
+    local time here, that silently shifts every displayed timestamp by the UTC
+    offset (8 hours in Manila). Emitting our own plain string keeps the time the
+    shop actually recorded, and the frontend's new Date(...) parses it as local.
+    """
+    if value is None:
+        return None
+    if hasattr(value, 'strftime'):
+        return value.strftime('%Y-%m-%d %H:%M:%S')
+    # Already a string from the driver - normalise "YYYY-MM-DDTHH:MM:SS".
+    return str(value).replace('T', ' ')[:19]
+
+
 def init_db():
     """Create tables if they don't exist and seed default admin."""
     if _using_mysql():
@@ -341,7 +358,8 @@ def init_db():
                 password TEXT NOT NULL,
                 fullname VARCHAR(255) NOT NULL,
                 role VARCHAR(50) DEFAULT 'customer',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_login DATETIME NULL DEFAULT NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
             CREATE TABLE IF NOT EXISTS orders (
@@ -391,6 +409,11 @@ def init_db():
         contact_cols = _mysql_columns(conn, 'contact_messages')
         if 'is_read' not in contact_cols:
             conn.execute("ALTER TABLE contact_messages ADD COLUMN is_read INT DEFAULT 0")
+
+        # Migration for users table (last_login column — powers the admin Users tab)
+        user_cols = _mysql_columns(conn, 'users')
+        if 'last_login' not in user_cols:
+            conn.execute("ALTER TABLE users ADD COLUMN last_login DATETIME NULL DEFAULT NULL")
     else:
         os.makedirs(os.path.join(BACKEND_DIR, 'database'), exist_ok=True)
         conn = get_db()
@@ -402,7 +425,8 @@ def init_db():
                 password TEXT NOT NULL,
                 fullname TEXT NOT NULL,
                 role TEXT DEFAULT 'customer',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP NULL DEFAULT NULL
             );
 
             CREATE TABLE IF NOT EXISTS orders (
@@ -451,6 +475,11 @@ def init_db():
         if 'is_read' not in contact_cols:
             conn.execute("ALTER TABLE contact_messages ADD COLUMN is_read INTEGER DEFAULT 0")
 
+        # Migration for users table (last_login column — powers the admin Users tab)
+        user_cols = [col[1] for col in conn.execute("PRAGMA table_info(users)").fetchall()]
+        if 'last_login' not in user_cols:
+            conn.execute("ALTER TABLE users ADD COLUMN last_login TIMESTAMP NULL DEFAULT NULL")
+
     # Seed default admin if missing
     admin = conn.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()
     if not admin:
@@ -478,14 +507,34 @@ DIST_DIR = os.path.join(BASE_DIR, 'frontend', 'dist')
 def index():
     """Serve modern React + shadcn frontend if built, or fallback to root index.html."""
     if os.path.exists(os.path.join(DIST_DIR, 'index.html')):
-        return send_file(os.path.join(DIST_DIR, 'index.html'))
-    return send_file(os.path.join(BASE_DIR, 'index.html'))
+        response = send_file(os.path.join(DIST_DIR, 'index.html'))
+    else:
+        response = send_file(os.path.join(BASE_DIR, 'index.html'))
+    # The HTML shell references content-hashed bundles, so it must always be
+    # revalidated — otherwise browsers (and the service worker's navigation
+    # fallback) keep serving an old build after a redeploy.
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
 
 
 @app.route('/assets/<path:filename>')
 def serve_dist_assets(filename):
     """Serve compiled Vite React assets."""
     return send_from_directory(os.path.join(DIST_DIR, 'assets'), filename)
+
+
+@app.route('/manifest.webmanifest')
+def serve_pwa_manifest():
+    """Serve the installable app manifest from the frontend build."""
+    return send_from_directory(DIST_DIR, 'manifest.webmanifest')
+
+
+@app.route('/service-worker.js')
+def serve_service_worker():
+    """Serve the service worker from the site root so it can control the app."""
+    response = send_from_directory(DIST_DIR, 'service-worker.js')
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
 
 
 @app.route('/public/<path:filename>')
@@ -605,10 +654,23 @@ def login():
         "SELECT id, username, email, password, fullname, role FROM users WHERE username = ? OR email = ?",
         (login_identifier, login_identifier.lower())
     ).fetchone()
-    conn.close()
 
     if not user or not check_password_hash(user['password'], password):
+        conn.close()
         return jsonify({'status': 'error', 'message': 'Invalid username/email or password.'}), 401
+
+    # Stamp the successful sign-in so the admin Users tab can show "last login".
+    # A failure here must never block someone from logging in.
+    try:
+        conn.execute("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?", (user['id'],))
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+
+    conn.close()
 
     user_data = {
         'id': user['id'],
@@ -792,6 +854,17 @@ def submit_order():
             'require_auth': True
         }), 401
 
+    # Admins manage the shop, they don't buy from it. Enforced HERE rather than
+    # only in the UI, so an admin session cannot place an order by calling the
+    # API directly either.
+    if authenticated_user.get('role') == 'admin':
+        conn.close()
+        return jsonify({
+            'status': 'error',
+            'message': 'Administrator accounts cannot place orders. Sign in with a customer account to order.',
+            'admin_cannot_order': True,
+        }), 403
+
     # Bind order to authenticated user credentials
     bound_user_id = authenticated_user['id']
     customer_name = authenticated_user['fullname']
@@ -900,7 +973,7 @@ def fetch_orders():
             'order_details': row['order_details'],
             'total_price': row['total_price'],
             'status': row['status'] if 'status' in row.keys() else 'pending',
-            'order_date': row['order_date'],
+            'order_date': _iso(row['order_date']),
         })
 
     return jsonify(orders)
@@ -988,6 +1061,64 @@ def clear_orders():
 
 
 # ── API: Contact ──────────────────────────────────────────────
+
+# ── API: Users (admin) ────────────────────────────────────────────
+
+@app.route('/api/fetch_users.php', methods=['GET'])
+@app.route('/api/fetch_users', methods=['GET'])
+@app.route('/fetch_users.php', methods=['GET'])
+@app.route('/fetch_users', methods=['GET'])
+def fetch_users():
+    """List every registered account with sign-in and spend history. Admin only.
+
+    Powers the admin "Users" tab: who has an account, when they last signed in,
+    and how much they have actually ordered. Read-only by design.
+    """
+    admin, err = _require_admin()
+    if err:
+        return err
+
+    conn = get_db()
+
+    rows = conn.execute(
+        "SELECT id, username, fullname, email, role, created_at, last_login "
+        "FROM users ORDER BY created_at DESC"
+    ).fetchall()
+
+    # Order activity per customer (cancelled orders excluded, matching analytics).
+    stats = {}
+    for row in conn.execute(
+        "SELECT user_id, COUNT(*) AS orders, COALESCE(SUM(total_price), 0) AS spent "
+        "FROM orders WHERE status != 'cancelled' GROUP BY user_id"
+    ).fetchall():
+        stats[row['user_id']] = {
+            'order_count': int(row['orders']),
+            'total_spent': float(row['spent']),
+        }
+
+    conn.close()
+
+    users = []
+    for row in rows:
+        u = dict(row)
+        s = stats.get(u['id'], {'order_count': 0, 'total_spent': 0.0})
+        last_login = u.get('last_login')
+        users.append({
+            'id': u['id'],
+            'username': u['username'],
+            'fullname': u['fullname'],
+            'email': u['email'],
+            'role': u['role'] or 'customer',
+            'is_admin': (u['role'] == 'admin'),
+            'created_at': _iso(u['created_at']),
+            'last_login': _iso(last_login),
+            'has_signed_in': last_login is not None,
+            'order_count': s['order_count'],
+            'total_spent': s['total_spent'],
+        })
+
+    return jsonify(users)
+
 
 @app.route('/api/save_contact.php', methods=['POST'])
 @app.route('/api/save_contact', methods=['POST'])
@@ -1116,7 +1247,7 @@ def fetch_contacts():
             'contact': r['contact'],
             'message': r['message'],
             'is_read': bool(r['is_read']) if 'is_read' in r.keys() else False,
-            'created_at': r['created_at'],
+            'created_at': _iso(r['created_at']),
         })
 
     return jsonify(contacts)
@@ -1262,7 +1393,7 @@ def sales_analytics():
             'customer_name': ro['customer_name'],
             'total_price': ro['total_price'],
             'status': ro['status'],
-            'order_date': ro['order_date']
+            'order_date': _iso(ro['order_date'])
         })
 
     conn.close()

@@ -13,6 +13,7 @@ import { ProfileModal } from './components/ProfileModal';
 import { ReceiptModal } from './components/ReceiptModal';
 import { MiniCart } from './components/MiniCart';
 import { PageSkeleton } from './components/PageSkeleton';
+import { Chatbot } from './components/Chatbot';
 import { CartItem, User } from './types';
 
 export function App() {
@@ -386,6 +387,14 @@ export function App() {
         activeTab={activeTab}
         onOpenCart={() => handleTabChange('cart')}
       />
+
+      {activeTab !== 'admin' && (
+        <Chatbot
+          productAvailability={productAvailability}
+          onAddToCart={handleAddToCart}
+          onNavigate={handleTabChange}
+        />
+      )}
 
       {/* Modals */}
       <AuthModal

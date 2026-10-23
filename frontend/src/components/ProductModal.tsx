@@ -247,7 +247,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
           {/* "What It's Made Of" (Ingredients) Box */}
           <div className="rounded-2xl bg-amber-50/70 border border-amber-200/80 p-4 sm:p-5 space-y-3">
-            <div className="flex items-center gap-2 text-brand-brown font-bold text-sm sm:text-base border-b border-amber-200/60 pb-2">
+            {/* This box keeps a light backdrop in BOTH themes (bg-amber-50/70
+                never gets a dark override), so its text must stay dark — using
+                text-brand-brown would be flipped to cream by .dark and turn the
+                labels invisible against the white cards. */}
+            <div className="flex items-center gap-2 text-black font-bold text-sm sm:text-base border-b border-amber-200/60 pb-2">
               <Info className="h-4 w-4 text-brand-orange" />
               <span>What It&apos;s Made Of &bull; Ingredients &amp; Recipe</span>
             </div>
@@ -256,7 +260,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               {details.ingredients.map((ing, idx) => {
                 const IconComp = ing.icon;
                 return (
-                  <div key={idx} className="flex items-start gap-2.5 text-xs text-brand-brown bg-white/80 p-2.5 rounded-xl border border-amber-100 shadow-2xs">
+                  <div key={idx} className="flex items-start gap-2.5 text-xs text-black bg-white/80 p-2.5 rounded-xl border border-amber-100 shadow-2xs">
                     <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-brand-coffee mt-0.5">
                       <IconComp className="h-3.5 w-3.5" />
                     </div>

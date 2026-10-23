@@ -141,6 +141,14 @@ For active frontend development with Hot Module Replacement:
 
 ---
 
+## Install on Android or iOS
+
+The frontend is an installable Progressive Web App (PWA). To install it from a phone, deploy the app and its API on the same HTTPS origin. On Android, open the site in Chrome and choose **Install app** (or **Add to Home screen**). On iPhone or iPad, open the site in Safari, tap **Share**, then **Add to Home Screen**.
+
+For local testing on the same Wi-Fi, run `start.bat` on Windows and open the **Network** address printed in the console on your phone. This launcher uses port `5001` to avoid conflicts with other services using port `5000`. If Windows blocks the connection, set the Wi-Fi network profile to **Private** and allow Python through Windows Firewall. Local HTTP access is for testing; PWA installation requires HTTPS.
+
+---
+
 ## Store Details
 
 - **Location**: Blk 14 Lot 4 Phase 1, Dela Costa Homes V, Burgos, Rodriguez, Rizal, Philippines 1860
